@@ -5,7 +5,7 @@ import axios from "axios";
 import { useSession } from "next-auth/react";
 import React, { createContext, useEffect, useState } from "react";
 import { User } from "next-auth";
-import { User as UserDB } from "@prisma/client";
+import { Message, User as UserDB } from "@prisma/client";
 import { io, Socket } from "socket.io-client";
 import { Chat, Notification } from "@prisma/client";
 import { usePathname, useRouter } from "next/navigation";
@@ -48,6 +48,8 @@ export default function RootLayout({
   const [chats, setChats] = useState<Chat[] | null>(null);
   const router = useRouter();
   const pathname = usePathname().split("/").pop();
+  const [unreadMessages, setUnreadMessages] = useState<{[key:string]: Message[]}>({});
+  const [unsentUnreadMessages, setUnsentUnreadMessages] = useState<{[key:string]: Message[]}>({});
 
   const getId = async () => {
     if(!session?.user?.email) return;
@@ -72,6 +74,70 @@ export default function RootLayout({
         }))
     })
   }, [status,setUser]);
+
+  useEffect(() => {
+    if(socket){
+      socket.on("connect", () => {
+        socket.on("background-message", (message:Message, type:string, fakeMesg:Message) => {
+          console.log("Received message in background", message.content);
+          if(type === "real" && fakeMesg){
+            setUnreadMessages((prev) => {
+              return {
+                ...prev,
+                [message.chatId]: prev[message.chatId].map((mesg) => mesg.id === fakeMesg.id ? message : mesg)
+              }
+            })
+            return;
+          }
+
+          setUnreadMessages((prev) => {
+            if(!prev[message.chatId]){
+              return {
+                ...prev,
+                [message.chatId]: [message]
+              }
+            }
+            return {
+              ...prev,
+              [message.chatId]: [...prev[message.chatId], message]
+            }
+          })
+          setUnsentUnreadMessages((prev) => {
+            if(!prev[message.chatId]){
+              return {
+                ...prev,
+                [message.chatId]: [message]
+              }
+            }
+            return {
+              ...prev,
+              [message.chatId]: [...prev[message.chatId], message]
+            }
+          })
+          axios.post("/api/message", { message:message.content, chatId:message.chatId, userId:message.userId })
+          .then((res) => {
+            const chat = unsentUnreadMessages[message.chatId];
+            const mesg = chat ? chat[0] : null;
+            if(mesg){
+              const wrongId = mesg.id as string;
+              setUnsentUnreadMessages((prev) => {
+                return {
+                  ...prev,
+                  [message.chatId]: prev[message.chatId].filter((message) => message.id !== wrongId)
+                }
+              })
+              setUnreadMessages((prev) => {
+                return {
+                  ...prev,
+                  [message.chatId]: prev[message.chatId].map((message) => message.id === wrongId ? res?.data.sentMessage : message)
+              }})
+              socket.emit("update-message", { message: res?.data.sentMessage, fakeMesg:mesg, userId: mesg.userId });
+            }
+          })
+        })
+      })
+    }
+  }, [socket])
 
   useEffect(() => {
     if(user){
@@ -103,7 +169,16 @@ export default function RootLayout({
                    className={`p-3 text-white ${pathname===chat.id? "bg-gray-600":"bg-gray-500"} border-b-2 border-gray-400 cursor-pointer"`}
                    onClick={() => router.push(`/chat/${chat.id}`)}
                   >
-                    {chat.name.split('-').filter((name) => name !== user?.name)[0]}
+                    <div>{chat.name.split('-').filter((name) => name !== user?.name)[0]}</div>
+                    <div>
+                      {
+                        pathname!==chat.id && unreadMessages[chat.id]?.length>0 && (
+                          <div className="bg-red-500 text-white rounded-full p-1 text-center">
+                            {unreadMessages[chat.id]?.length}
+                          </div>
+                        )
+                      }
+                    </div>
                   </div>
                 ))
              }

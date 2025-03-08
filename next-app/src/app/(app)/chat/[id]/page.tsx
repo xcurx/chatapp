@@ -23,6 +23,22 @@ export default function Home() {
   const socketConnection = useContext(SocketContext);
   const { id } = useParams();
 
+  const handleSend = () => {
+    if(!message.trim()) return;
+    const receivedMessage:Message = {
+      chatId: chat?.id as string,
+      content: message as string,
+      userId: session?.user?.id as string,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      id: Math.random().toString()
+    }
+    socketConnection?.socket?.emit('message', { message:receivedMessage, sendId:`${chat?.users.find((user) => user.id !== session?.user?.id)?.id}`, userId:session?.user.id as string }); 
+    console.log(receivedMessage, chat?.users.find((user) => user.id !== session?.user?.id)?.id, session?.user?.id);
+    setMessages((prev) => [...prev || [], receivedMessage]);
+    setMessage('')
+  }
+
   useEffect(() => {
     if (!socketConnection?.socket) return;
 
@@ -32,7 +48,9 @@ export default function Home() {
       console.log("Socket connected", socketConnection?.socket.id);
     });
 
-    socketConnection?.socket.on("receive-message", (message:Message, type:string, fakeMesg:Message) => {
+    socketConnection?.socket.emit("subscribe", "receive-message");
+
+    socketConnection?.socket.on("receive-message", (message: Message, type: string, fakeMesg: Message) => {
       console.log("Received message", message);
       if(type === "real" && fakeMesg){
         setMessages((prev) => (prev ? prev.map((mesg) => mesg.id === fakeMesg.id ? message : mesg) : []));
@@ -56,10 +74,14 @@ export default function Home() {
     });
 
     socketConnection?.socket.on("disconnect", () => {
+      socketConnection?.socket.emit("unsubscribe", "receive-message");
       console.log("Socket disconnected");
     });
 
     return () => {
+      socketConnection?.socket.emit("unsubscribe", "receive-message");
+      socketConnection?.socket?.off("subscribe");
+      socketConnection?.socket?.off("unsubscribe");
       socketConnection?.socket?.off("connect");
       socketConnection?.socket?.off("receive-message");
       socketConnection?.socket?.off("disconnect");
@@ -76,12 +98,19 @@ export default function Home() {
   }
 
   useEffect(() => {
+    const chatScrollElement = document.getElementById("chat-scroll");
+    if (chatScrollElement) {
+      chatScrollElement.scrollTo({ top: chatScrollElement.scrollHeight, behavior: "smooth" });
+    }
+  }, [messages]);
+
+  useEffect(() => {
     getChat();
   }, []);
 
   return (
     <div className="relative font-[family-name:var(--font-geist-sans)] h-full w-full text-white flex flex-col">
-        <div className="flex-1 w-full overflow-auto">
+        <div id="chat-scroll" className="flex-1 w-full overflow-auto">
           {
             session?.user && messages?.map((message) => (
               <ChatComponent key={message.id} message={message} user={session?.user}/>
@@ -97,20 +126,7 @@ export default function Home() {
                placeholder="Type a message"
                onChange={(e) => setMessage(e.target.value)}
               />
-              <Button size={"icon"} onClick={() => {
-                const receivedMessage:Message = {
-                  chatId: chat?.id as string,
-                  content: message as string,
-                  userId: session?.user?.id as string,
-                  createdAt: new Date(),
-                  updatedAt: new Date(),
-                  id: Math.random().toString()
-                }
-                socketConnection?.socket?.emit('message', { message:receivedMessage, sendId:`${chat?.users.find((user) => user.id !== session?.user?.id)?.id}`, userId:session?.user.id as string }); 
-                console.log(receivedMessage, chat?.users.find((user) => user.id !== session?.user?.id)?.id, session?.user?.id);
-                setMessages((prev) => [...prev || [], receivedMessage]);
-                setMessage('')
-                }}>
+              <Button size={"icon"} onClick={handleSend}>
                   <Send/>
               </Button>
             </div>
