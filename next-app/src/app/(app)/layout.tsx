@@ -199,7 +199,7 @@ const NotificationDialog = ({ user }:{ user:UserWithId }) => {
                       {
                         loading===notification.id && !notification.read ? (
                           <Loader/>
-                        ) : !notification.read? (
+                        ) : (!notification.read && notification.type !== "Accept") && (
                           <>
                             <Button onClick={handleAccept} data-userid={notification.user.id} data-notificationid={notification.id}>
                               <Check/>
@@ -208,7 +208,7 @@ const NotificationDialog = ({ user }:{ user:UserWithId }) => {
                               <X/>
                             </Button>
                           </>
-                        ) : null
+                        )
                       }
                     </div>
                   </div>

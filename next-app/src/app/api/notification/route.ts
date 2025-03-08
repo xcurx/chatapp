@@ -46,6 +46,101 @@ export const POST = auth(async function POST(req) {
         )
       }
     }
+
+    const notificationExist = await prisma.notification.findFirst({
+      where: {
+        AND: [
+          {
+            user: {
+              email: req.auth.user?.email as string
+            }
+          },
+          {
+            targetUser: {
+              id: targetId
+            }
+          }
+        ]
+      }
+    })
+    if(notificationExist){
+      return Response.json(
+          {message: 'Request already sent'},
+          {status: 400}
+      )
+    }
+
+    const reverseNotificationExist = await prisma.notification.findFirst({
+      where: {
+        AND: [
+          {
+            user: {
+              id: targetId
+            }
+          },
+          {
+            targetUser: {
+              email: req.auth.user?.email as string
+            }
+          }
+        ]
+      }
+    })
+    if(reverseNotificationExist){
+      await prisma.notification.update({
+        where: {
+          id: reverseNotificationExist.id
+        },
+        data: {
+          read: true
+        }
+      });
+      const user1 = await prisma.user.findUnique({
+        where: {
+          email: req.auth.user?.email as string
+        }
+      })
+      const user2 = await prisma.user.findUnique({
+        where: {
+          id: targetId
+        }
+      })
+      if(user1 && user2){
+        await prisma.chat.create({
+          data: {
+            name: `${user1.name}-${user2.name}`,
+            users: {
+              connect: [
+                { id: user1.id },
+                { id: user2.id }
+              ]
+            }
+          }
+        })
+      }
+
+      await prisma.notification.create({
+        data: {
+          user: {
+            connect: {
+              email: req.auth.user?.email as string
+            }
+          },
+          targetUser: {
+            connect: {
+              id: targetId
+            }
+          },
+          content: 'accepted your message request',
+          type: 'Accept'
+        }
+      })
+
+      return Response.json(
+          {message: 'Chat created'},
+          {status: 200}
+      )
+    }
     
     if(type === 'Request'){
       const chatExist = await prisma.chat.findFirst({
@@ -103,7 +198,7 @@ export const POST = auth(async function POST(req) {
 
     return Response.json(
         {
-            message: 'Notification sent',
+            message: 'Request sent',
             data: notification
         },
         {status: 201}

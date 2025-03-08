@@ -2,7 +2,7 @@
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Chat, Notification, User } from '@prisma/client'
-import axios from 'axios'
+import axios, { AxiosResponse } from 'axios'
 import { Check, Loader, Plus } from 'lucide-react'
 import Image from 'next/image'
 import React, { useContext, useState } from 'react'
@@ -30,8 +30,8 @@ const Page = () => {
         if(!targetId) return;
         setLoading(targetId)
         try {
-            const res = await axios.post(`/api/notification`, { targetId, type: "Request" })
-            if(res?.data.data){
+            const res:AxiosResponse = await axios.post(`/api/notification`, { targetId, type: "Request" })
+            if(res?.status < 300){
                 const updatedUser = searchResults.map((user) => {
                     if(user.id === targetId){
                         return {
@@ -43,7 +43,7 @@ const Page = () => {
                 })
                 setSearchResults(updatedUser)
                 setLoading("")
-                toast.success("Request sent")
+                toast.success(res.data.message)
                 socketConnection?.socket.emit('notification', { targetId, notification: res?.data.data })
             }
         } catch (error) {

@@ -27,6 +27,27 @@ export const POST = async (req:Request) => {
         );
     }
 
+    const uniqueChatExists = await prisma.chat.findFirst({
+        where: {
+            users: {
+                every: {
+                    id: {
+                        in: [user1, user2]
+                    }
+                }
+            }
+        }
+    })
+    if(uniqueChatExists){
+        return Response.json(
+            {
+                success: false,
+                message: 'Chat already exists',
+            },
+            { status: 400 }
+        );
+    }
+
     const chat = await prisma.chat.create({
         data: {
             name: `${user1Exists.name}-${user2Exists.name}`,
