@@ -20,16 +20,6 @@ const userSubscriptions = new Map<string, Set<string>>();
 
 const sockets: Sockets = {};
 
-function receiveMessage(userSocketId:string, message:object, type?:string, fakeMesg?:object | null) {
-  if (userSubscriptions.get(userSocketId)?.has("receive-message")) {
-    console.log('function: ' + message, userSocketId, type, fakeMesg);
-    io.to(userSocketId).emit("receive-message", message, type, fakeMesg);
-  }else{
-    console.log(`User ${userSocketId} is not listening to '${"receive-message"}'`);
-    io.to(userSocketId).emit("background-message", message, type, fakeMesg);
-  }
-}
-
 io.on('connection', (socket) => {
   const userId = socket.handshake.query.userId as string;
   sockets[userId] = socket.id;
@@ -54,16 +44,32 @@ io.on('connection', (socket) => {
     }
   });
  
-  socket.on('message', ({message, sendId, userId}) => {
-    console.log('message: ' + message, userId,"to",sockets[sendId],"of",sendId);
+  socket.on('message', ({message, sendId}) => {
+    console.log('message: ' + message,"to",sockets[sendId],"of",sendId);
+    const userStatus = checkOnlineStatus(sendId);
+    console.log('userStatus: ' + userStatus);
+    if(userStatus){
+      message = {...message, received:true};
+    }
+    io.to(sockets[message.userId]).emit('receiver-status', message, userStatus);
     const type = "fake";
     receiveMessage(sockets[sendId], message, type, null);
   });
 
   socket.on('update-message', ({message, fakeMesg, userId}) => {
-    console.log('update-message: ' + message, userId);
+    console.log('update-message: ' + message.content, userId);
+    console.log(sockets)
     const type = "real";
     receiveMessage(sockets[userId], message, type, fakeMesg);
+  })
+
+  socket.on("read-message", ({message}) => {
+    io.to(sockets[message.userId]).emit("receive-read-message", message);
+  })
+
+  socket.on("change-receive-status", ({message}) => {
+    console.log('change-receive-status: ' + message);
+    io.to(sockets[message.userId]).emit("set-receive-status", message);
   })
 
   socket.on('notification', ({targetId, notification}) => {
@@ -83,3 +89,18 @@ io.on('connection', (socket) => {
 server.listen(8000, () => {
   console.log('listening on port:8000');
 });
+
+function receiveMessage(userSocketId:string, message:object, type?:string, fakeMesg?:object | null) {
+  if (userSubscriptions.get(userSocketId)?.has("receive-message")) {
+    console.log('function: ' + message, userSocketId, type, fakeMesg);
+    io.to(userSocketId).emit("receive-message", message, type, fakeMesg);
+    // io.to(userSocketId).emit("background-message", message, type, fakeMesg);
+  }else{
+    console.log(`User ${userSocketId} is not listening to '${"receive-message"}'`);
+    io.to(userSocketId).emit("background-message", message, type, fakeMesg);
+  }
+}
+
+const checkOnlineStatus = (userId:string) => {
+  return !!sockets[userId];
+}

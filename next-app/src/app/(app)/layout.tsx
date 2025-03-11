@@ -11,8 +11,7 @@ import { Chat, Notification } from "@prisma/client";
 import { usePathname, useRouter } from "next/navigation";
 import { Bell, Check, Loader, X } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Avatar, AvatarImage } from "@/components/ui/avatar";
-import { AvatarFallback } from "@radix-ui/react-avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
 
@@ -30,6 +29,10 @@ export interface UserWithId extends User {
   id: string;
 }
 
+interface ChatWithLastMessage extends Chat {
+  messages: Message[];
+  users: UserDB[];
+}
 export interface NotificationWithUser extends Notification {
   user: UserDB;
 }
@@ -45,11 +48,10 @@ export default function RootLayout({
   const [user, setUser] = useState<UserWithId | null>(null);
   const {data:session, status} = useSession();
   const [socket, setSocket] = useState<Socket | null>(null);
-  const [chats, setChats] = useState<Chat[] | null>(null);
+  const [chats, setChats] = useState<ChatWithLastMessage[] | null>(null);
   const router = useRouter();
   const pathname = usePathname().split("/").pop();
   const [unreadMessages, setUnreadMessages] = useState<{[key:string]: Message[]}>({});
-  const [unsentUnreadMessages, setUnsentUnreadMessages] = useState<{[key:string]: Message[]}>({});
 
   const getId = async () => {
     if(!session?.user?.email) return;
@@ -60,13 +62,35 @@ export default function RootLayout({
 
   const getChats = async () => {
     if(!user) return;
-    const res = await axios.get(`/api/get-chats/${user?.id}`);
-    setChats(res?.data?.data);
+    await axios.get(`/api/get-chats/${user?.id}`)
+    .then((res) => {
+      console.log("chats",res?.data?.data);
+      setChats(res?.data?.data);
+      setUnreadMessages(() => {
+        const chats = res?.data?.data.reduce((acc: { [key: string]: Message[] }, chat: ChatWithLastMessage) => {
+          acc[chat.id] = chat.messages?.filter((message) => {
+            if(message.userId !== user?.id && !message.read){
+              socket?.emit("change-receive-status", { message });
+            }
+            return message.userId !== user?.id && !message.read
+          }) || [];
+          return acc;
+        }, {});
+        return chats;
+      });      
+    })
+  }
+
+  if(chats){
+    console.log("path",pathname,chats[0]?.id);
   }
 
   useEffect(() => {
     getId()
     .then((res) => {
+         if(!res?.data?.data.id){
+            return;
+         }
          setSocket(io('http://localhost:8000', {
           query: {
             userId: res?.data?.data.id
@@ -81,6 +105,7 @@ export default function RootLayout({
         socket.on("background-message", (message:Message, type:string, fakeMesg:Message) => {
           console.log("Received message in background", message.content);
           if(type === "real" && fakeMesg){
+            socket.emit("change-receive-status", { message });
             setUnreadMessages((prev) => {
               return {
                 ...prev,
@@ -102,40 +127,13 @@ export default function RootLayout({
               [message.chatId]: [...prev[message.chatId], message]
             }
           })
-          setUnsentUnreadMessages((prev) => {
-            if(!prev[message.chatId]){
-              return {
-                ...prev,
-                [message.chatId]: [message]
-              }
-            }
-            return {
-              ...prev,
-              [message.chatId]: [...prev[message.chatId], message]
-            }
-          })
-          axios.post("/api/message", { message:message.content, chatId:message.chatId, userId:message.userId })
-          .then((res) => {
-            const chat = unsentUnreadMessages[message.chatId];
-            const mesg = chat ? chat[0] : null;
-            if(mesg){
-              const wrongId = mesg.id as string;
-              setUnsentUnreadMessages((prev) => {
-                return {
-                  ...prev,
-                  [message.chatId]: prev[message.chatId].filter((message) => message.id !== wrongId)
-                }
-              })
-              setUnreadMessages((prev) => {
-                return {
-                  ...prev,
-                  [message.chatId]: prev[message.chatId].map((message) => message.id === wrongId ? res?.data.sentMessage : message)
-              }})
-              socket.emit("update-message", { message: res?.data.sentMessage, fakeMesg:mesg, userId: mesg.userId });
-            }
-          })
         })
       })
+    }
+
+    return () => {
+      socket?.off("connect");
+      socket?.off("background-message");
     }
   }, [socket])
 
@@ -145,7 +143,7 @@ export default function RootLayout({
     }
   }, [user]);
 
-  return (
+  return  (
     <html lang="en" className="dark">
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased flex flex-col h-screen overflow-hidden`}
@@ -163,21 +161,36 @@ export default function RootLayout({
         <main className="flex flex-1 h-full text-black overflow-hidden">
           <div className="bg-gray-700 w-1/4 flex flex-col justify-start overflow-auto">
              {
-                chats?.map((chat) => (
+                unreadMessages && chats?.map((chat) => (
                   <div 
                    key={chat.id} 
-                   className={`p-3 text-white ${pathname===chat.id? "bg-gray-600":"bg-gray-500"} border-b-2 border-gray-400 cursor-pointer"`}
+                   className={`p-3 text-white ${pathname===chat.id? "bg-gray-600":"bg-gray-500"} flex space-x-3 border-b-2 border-gray-400 cursor-pointer"`}
                    onClick={() => router.push(`/chat/${chat.id}`)}
                   >
-                    <div>{chat.name.split('-').filter((name) => name !== user?.name)[0]}</div>
                     <div>
-                      {
-                        pathname!==chat.id && unreadMessages[chat.id]?.length>0 && (
-                          <div className="bg-red-500 text-white rounded-full p-1 text-center">
-                            {unreadMessages[chat.id]?.length}
-                          </div>
-                        )
-                      }
+                      <Avatar>
+                          <AvatarImage src={chat.users.filter((u) => u.name !== user?.name)[0].avatar}/>
+                          <AvatarFallback>
+                              {chat.name.split('-').filter((name) => name !== user?.name)[0][0]}
+                          </AvatarFallback>
+                      </Avatar>
+                    </div>
+                    <div className="flex-1">
+                      <div className="text-lg">{chat.name.split('-').filter((name) => name !== user?.name)[0]}</div>
+                      <div className="w-full text-sm text-gray-200 text-ellipsis">
+                        {
+                          pathname!==chat.id ? unreadMessages[chat.id]?.length>0 ? (
+                           <div className="w-full flex justify-between">
+                              <span className="text-green-500"> 
+                                {unreadMessages[chat.id][0].content}
+                              </span>
+                              <span className="text-white rounded-full bg-green-500 text-xs">
+                                {unreadMessages[chat.id].length.toString()}
+                              </span>
+                           </div>
+                          ) : chat.messages[0]?.content ? chat.messages[0]?.content : "No messages" : null
+                        }
+                      </div>
                     </div>
                   </div>
                 ))
@@ -208,7 +221,7 @@ const NotificationDialog = ({ user }:{ user:UserWithId }) => {
 
   const geiNotifications = async () => {
     const res = await axios.get(`/api/get-notifications/${user.id}`)
-    console.log(res?.data?.data)
+    // console.log(res?.data?.data)
     setNotifications(res?.data?.data)
   }
 
@@ -230,7 +243,7 @@ const NotificationDialog = ({ user }:{ user:UserWithId }) => {
     if(!userId) return;
     setLoading(notificationId);
     const res = await axios.post(`/api/create-chat`, { user1: user.id, user2: userId });
-    console.log(res?.data?.data)
+    // console.log(res?.data?.data)
     if(res?.data?.data){
       const res = await axios.patch(`/api/notification-action`, { notificationId });
       if(res?.data?.message){
