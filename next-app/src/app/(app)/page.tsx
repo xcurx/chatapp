@@ -16,11 +16,11 @@ export default function Home() {
   }
   
   return (
-    <div className="font-[family-name:var(--font-geist-sans)] h-full text-white flex flex-col">
+    <div className="font-[family-name:var(--font-geist-sans)] h-full w-full text-white flex flex-col">
        Welcome {session?.user?.email}
        <Image src={session?.user?.image as string} alt="user image" width={100} height={100} />
 
-      <Button type="submit" onClick={handleSignOut}>Sign Out</Button>
+      <Button type="submit" size={"default"} onClick={handleSignOut}>Sign Out</Button>
     </div>
   );
 }

@@ -25,22 +25,44 @@ io.on('connection', (socket) => {
   sockets[userId] = socket.id;
   console.log('a user connected', socket.id, userId, io.sockets.sockets.size);
 
-  socket.on("subscribe", (event:string) => {
-    let subscription = userSubscriptions.get(socket?.id as string);
-    if (!subscription) {
-        subscription = new Set<string>();
-        userSubscriptions.set(socket?.id as string, subscription);
+  socket.on("subscribe", ({event, chatId}) => {
+    console.log("Subscribing to", event, chatId);
+    let subscription = userSubscriptions.get(socket.id);
+  
+    const subscriptionKey = JSON.stringify({ event, chatId }); 
+
+    if (subscription?.has(subscriptionKey)) {
+      console.log("Already subscribed");
+      return;
     }
-    subscription.add(event);
+
+    if (!subscription) {
+      subscription = new Set<string>();
+      userSubscriptions.set(socket.id, subscription);
+    }
+
+    // Check if the user is already subscribed to the same event with a different chatId
+    for (let key of subscription) {
+      const parsedKey = JSON.parse(key);
+      if (parsedKey.event === event && parsedKey.chatId !== chatId) {
+        console.log(`Already subscribed to event ${event} with a different chatId`);
+        return;
+      }
+    }
+
+    subscription.add(subscriptionKey);
   });
 
-  socket.on("unsubscribe", (event:string) => {
-    const subscription = userSubscriptions.get(socket?.id as string);
+  socket.on("unsubscribe", ({event, chatId}) => {
+    console.log("Unsubscribing from", event, chatId);
+    const subscription = userSubscriptions.get(socket.id);
+    const subscriptionKey = JSON.stringify({ event, chatId });
+  
     if (subscription) {
-        subscription.delete(event);
-        if (subscription.size === 0) {
-            userSubscriptions.delete(socket?.id as string);
-        }
+      subscription.delete(subscriptionKey);
+      if (subscription.size === 0) {
+        userSubscriptions.delete(socket.id);
+      }
     }
   });
  
@@ -51,25 +73,24 @@ io.on('connection', (socket) => {
     if(userStatus){
       message = {...message, received:true};
     }
-    io.to(sockets[message.userId]).emit('receiver-status', message, userStatus);
+    receiverStatus(message, userStatus);
     const type = "fake";
-    receiveMessage(sockets[sendId], message, type, null);
+    receiveMessage(sendId, message, type, null);
   });
 
   socket.on('update-message', ({message, fakeMesg, userId}) => {
     console.log('update-message: ' + message.content, userId);
-    console.log(sockets)
     const type = "real";
-    receiveMessage(sockets[userId], message, type, fakeMesg);
+    receiveMessage(userId, message, type, fakeMesg);
   })
 
   socket.on("read-message", ({message}) => {
-    io.to(sockets[message.userId]).emit("receive-read-message", message);
+    receiveReadMessage(message);
   })
 
   socket.on("change-receive-status", ({message}) => {
-    console.log('change-receive-status: ' + message);
-    io.to(sockets[message.userId]).emit("set-receive-status", message);
+    message.read_count = undefined
+    setReceiveStatus(message);
   })
 
   socket.on('notification', ({targetId, notification}) => {
@@ -90,14 +111,46 @@ server.listen(8000, () => {
   console.log('listening on port:8000');
 });
 
-function receiveMessage(userSocketId:string, message:object, type?:string, fakeMesg?:object | null) {
-  if (userSubscriptions.get(userSocketId)?.has("receive-message")) {
-    console.log('function: ' + message, userSocketId, type, fakeMesg);
+function receiveMessage(sendId:string, message:any, type?:string, fakeMesg?:object | null) {
+  const userSocketId = sockets[sendId]
+  console.log("subscribed users: ", userSubscriptions);
+  if(userSubscriptions.get(userSocketId)?.has(JSON.stringify({ event: "receive-message", chatId: message.chatId }))){
+    console.log('function: ' + message.content, userSocketId, type, fakeMesg);
     io.to(userSocketId).emit("receive-message", message, type, fakeMesg);
     // io.to(userSocketId).emit("background-message", message, type, fakeMesg);
   }else{
+    console.log('function: ' + message.content, userSocketId, type, fakeMesg);
     console.log(`User ${userSocketId} is not listening to '${"receive-message"}'`);
     io.to(userSocketId).emit("background-message", message, type, fakeMesg);
+  }
+}
+
+function receiveReadMessage(message:any) {
+  const userSocketId = sockets[message.userId];
+  console.log(userSubscriptions)
+  if(userSubscriptions.get(userSocketId)?.has(JSON.stringify({ event: "receive-read-message", chatId: message.chatId }))){
+    io.to(userSocketId).emit("receive-read-message", message);
+  }else{
+    console.log(`User ${userSocketId} is not listening to '${"receive-read-message"}'`);
+  }
+}
+
+function receiverStatus(message:any, userStatus:boolean) {
+  console.log(userSubscriptions)
+  const userSocketId = sockets[message.userId];
+  if(userSubscriptions.get(userSocketId)?.has(JSON.stringify({ event: "receiver-status", chatId: message.chatId }))){
+    io.to(userSocketId).emit("receiver-status", message, userStatus);
+  }else{
+    console.log(`User ${userSocketId} is not listening to '${"receiver-status"}'`);
+  }
+}
+
+function setReceiveStatus(message:any) {
+  const userSocketId = sockets[message.userId];
+  if(userSubscriptions.get(userSocketId)?.has(JSON.stringify({ event: "set-receive-status", chatId: message.chatId }))){
+    io.to(userSocketId).emit("set-receive-status", message);
+  }else{
+    console.log(`User ${userSocketId} is not listening to '${"set-receive-status"}'`);
   }
 }
 

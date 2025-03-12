@@ -9,7 +9,7 @@ import { Message, User as UserDB } from "@prisma/client";
 import { io, Socket } from "socket.io-client";
 import { Chat, Notification } from "@prisma/client";
 import { usePathname, useRouter } from "next/navigation";
-import { Bell, Check, Loader, X } from "lucide-react";
+import { Bell, BellDot, Check, Loader, X } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Toaster } from "@/components/ui/sonner";
@@ -101,32 +101,31 @@ export default function RootLayout({
 
   useEffect(() => {
     if(socket){
-      socket.on("connect", () => {
-        socket.on("background-message", (message:Message, type:string, fakeMesg:Message) => {
-          console.log("Received message in background", message.content);
-          if(type === "real" && fakeMesg){
-            socket.emit("change-receive-status", { message });
-            setUnreadMessages((prev) => {
-              return {
-                ...prev,
-                [message.chatId]: prev[message.chatId].map((mesg) => mesg.id === fakeMesg.id ? message : mesg)
-              }
-            })
-            return;
-          }
-
+      socket.on("background-message", (message:Message, type:string, fakeMesg:Message) => {
+        console.log("Received message in background", message.content);
+        if(type === "real" && fakeMesg){
+          console.log("bg",message)
+          socket.emit("change-receive-status", { message:message });
           setUnreadMessages((prev) => {
-            if(!prev[message.chatId]){
-              return {
-                ...prev,
-                [message.chatId]: [message]
-              }
-            }
             return {
               ...prev,
-              [message.chatId]: [...prev[message.chatId], message]
+              [message.chatId]: prev[message.chatId].map((mesg) => mesg.id === fakeMesg.id ? message : mesg)
             }
           })
+          return;
+        }
+
+        setUnreadMessages((prev) => {
+          if(!prev[message.chatId]){
+            return {
+              ...prev,
+              [message.chatId]: [message]
+            }
+          }
+          return {
+            ...prev,
+            [message.chatId]: [...prev[message.chatId], message]
+          }
         })
       })
     }
@@ -135,54 +134,53 @@ export default function RootLayout({
       socket?.off("connect");
       socket?.off("background-message");
     }
-  }, [socket])
+  }, [socket, pathname])
 
   useEffect(() => {
     if(user){
       getChats();
     }
-  }, [user]);
+  }, [user, pathname]);
 
   return  (
-    <html lang="en" className="dark">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased flex flex-col h-screen overflow-hidden`}
+      <div
+        className={`${geistSans.variable} ${geistMono.variable} bg-zinc-950 antialiased flex flex-col h-screen overflow-hidden`}
         >
-        <nav className="w-full">
-          <div className="w-full bg-gray-800 text-white p-3 flex justify-end space-x-3">
+        <nav className="w-full border-t-2  border-b-2 border-zinc-700">
+          <div className="w-full text-white p-3 flex justify-end space-x-3">
              {/* <Button onClick={create}>Create Chat</Button> */}
              <Button onClick={() => router.push("/search")}>Add User</Button>
              <Button onClick={() => router.push("/profile")}>
                   Profile
              </Button>
-             {user && <NotificationDialog user={user}></NotificationDialog>}
+             {socket && user && <NotificationDialog user={user} socket={socket} getChats={getChats}></NotificationDialog>}
           </div>
         </nav>
         <main className="flex flex-1 h-full text-black overflow-hidden">
-          <div className="bg-gray-700 w-1/4 flex flex-col justify-start overflow-auto">
+          <div className="bg-zinc-950 2xl:w-1/3 xl:w-2/5 lg:w-[45%] hidden lg:flex flex-col justify-start border-r-2 border-zinc-700 overflow-auto">
              {
                 unreadMessages && chats?.map((chat) => (
                   <div 
                    key={chat.id} 
-                   className={`p-3 text-white ${pathname===chat.id? "bg-gray-600":"bg-gray-500"} flex space-x-3 border-b-2 border-gray-400 cursor-pointer"`}
+                   className={`p-3 text-white ${pathname===chat.id? "bg-zinc-800":"bg-zinc-950"} flex space-x-3 border-b-2 border-zinc-700 cursor-pointer"`}
                    onClick={() => router.push(`/chat/${chat.id}`)}
                   >
                     <div>
                       <Avatar>
                           <AvatarImage src={chat.users.filter((u) => u.name !== user?.name)[0].avatar}/>
-                          <AvatarFallback>
+                          <AvatarFallback className="bg-zinc-700">
                               {chat.name.split('-').filter((name) => name !== user?.name)[0][0]}
                           </AvatarFallback>
                       </Avatar>
                     </div>
                     <div className="flex-1">
-                      <div className="text-lg">{chat.name.split('-').filter((name) => name !== user?.name)[0]}</div>
+                      <div className="xl:text-lg text-base">{chat.name.split('-').filter((name) => name !== user?.name)[0]}</div>
                       <div className="w-full text-sm text-gray-200 text-ellipsis">
                         {
-                          pathname!==chat.id ? unreadMessages[chat.id]?.length>0 ? (
+                          pathname!==chat.id ? (unreadMessages[chat.id] && unreadMessages[chat.id]?.length>0) ? (
                            <div className="w-full flex justify-between">
                               <span className="text-green-500"> 
-                                {unreadMessages[chat.id][0].content}
+                                {unreadMessages[chat.id]?.[unreadMessages[chat.id]?.length - 1]?.content}
                               </span>
                               <span className="text-white rounded-full bg-green-500 text-xs">
                                 {unreadMessages[chat.id].length.toString()}
@@ -210,13 +208,13 @@ export default function RootLayout({
         </main>
 
         <Toaster/>
-      </body>
-    </html>
+      </div>
   );
 }
 
-const NotificationDialog = ({ user }:{ user:UserWithId }) => {
+const NotificationDialog = ({ user, socket, getChats }:{ user:UserWithId, socket:Socket, getChats:() => void }) => {
   const [notifications, setNotifications] = useState<NotificationWithUser[]>([]);
+  const [hasUnread, setHasUnread] = useState<boolean>(false);
   const [loading, setLoading] = useState<string>("");
 
   const geiNotifications = async () => {
@@ -243,11 +241,13 @@ const NotificationDialog = ({ user }:{ user:UserWithId }) => {
     if(!userId) return;
     setLoading(notificationId);
     const res = await axios.post(`/api/create-chat`, { user1: user.id, user2: userId });
+    getChats();
     // console.log(res?.data?.data)
     if(res?.data?.data){
       const res = await axios.patch(`/api/notification-action`, { notificationId });
       if(res?.data?.message){
-        axios.post(`/api/notification`, { targetId: userId, type: "Accept" });
+        const notification = await axios.post(`/api/notification`, { targetId: userId, type: "Accept" });
+        socket.emit('notification', { targetId: userId, notification: notification?.data.data })
         geiNotifications()
         .then(() => setLoading(""))
         toast.success("Chat created");
@@ -256,13 +256,39 @@ const NotificationDialog = ({ user }:{ user:UserWithId }) => {
   }
 
   useEffect(() => {
+    socket.on("receive-notification", (notification:NotificationWithUser) => {
+      console.log("Received notification", notification);
+      if(notification.type === "Accept"){
+        getChats();
+      }
+      setNotifications((prev) => {
+        return [...prev, notification]
+      })
+    })
+
+    return () => {
+      socket?.off("receive-notification");
+    }
+  }, [socket])
+
+  useEffect(() => {
+    setHasUnread(notifications.some((notification) => !notification.read))
+  },[notifications])
+
+  useEffect(() => {
     geiNotifications()
   },[])
 
   return (
     <Dialog>
       <DialogTrigger className="cursor-pointer bg-white py-1 px-3 rounded-lg">
-        <Bell className="text-black"/>
+        {
+          hasUnread ? (
+            <BellDot className="text-black"/>
+          ) : (
+            <Bell className="text-black"/>
+          )
+        }
       </DialogTrigger>
       <DialogContent className="flex flex-col items-center">
         <DialogHeader className="flex flex-col items-center">
@@ -270,41 +296,63 @@ const NotificationDialog = ({ user }:{ user:UserWithId }) => {
           <div className="mt-3">
             {
               notifications?.map((notification) => (
-                  <div key={notification.id} className="flex items-center justify-between space-x-3 my-4 border-2 rounded-md p-3">
-                    <div className="flex items-center space-x-3">
-                       <div>
-                          <Avatar className="flex justify-center items-center bg-gray-600">
-                            <AvatarImage src={notification.user.avatar}/>
-                            <AvatarFallback className="flex items-center justify-center">{notification.user.name[0]}</AvatarFallback>
-                          </Avatar>
-                        </div>
-                        <div className="flex flex-col space-y-1">
-                          <span>{notification.user.name}</span>
-                          <span>{notification.content}</span>
-                        </div>
-                    </div>
-                    <div className="flex space-x-2">
-                      {
-                        loading===notification.id && !notification.read ? (
-                          <Loader/>
-                        ) : (!notification.read && notification.type !== "Accept") && (
-                          <>
-                            <Button onClick={handleAccept} data-userid={notification.user.id} data-notificationid={notification.id}>
-                              <Check/>
-                            </Button>
-                            <Button onClick={handleRead} data-notificationid={notification.id}>
-                              <X/>
-                            </Button>
-                          </>
-                        )
-                      }
-                    </div>
-                  </div>
+                <NotificationComponent 
+                  key={notification.id} 
+                  notification={notification} 
+                  handleAccept={handleAccept} 
+                  handleRead={handleRead}
+                  loading={loading}
+                />
               ))
             }
           </div>
         </DialogHeader>
       </DialogContent>
     </Dialog>
+  )
+}
+
+const NotificationComponent = ({ 
+  notification, 
+  handleAccept, 
+  handleRead,
+  loading
+}:{ 
+  notification:NotificationWithUser, 
+  handleAccept: (e: React.MouseEvent<HTMLButtonElement>) => void, 
+  handleRead: (e: React.MouseEvent<HTMLButtonElement>) => void,
+  loading: string
+}) => {
+  return (
+    <div className="flex items-center justify-between space-x-3 my-4 border-2 rounded-md p-3">
+    <div className="flex items-center space-x-3">
+       <div>
+        <Avatar className="flex justify-center items-center bg-gray-600">
+        <AvatarImage src={notification.user.avatar}/>
+        <AvatarFallback className="flex items-center justify-center">{notification.user.name[0]}</AvatarFallback>
+        </Avatar>
+      </div>
+      <div className="flex flex-col space-y-1">
+        <span>{notification.user.name}</span>
+        <span>{notification.content}</span>
+      </div>
+    </div>
+    <div className="flex space-x-2">
+      {
+      loading===notification.id && !notification.read ? (
+        <Loader/>
+      ) : (!notification.read && notification.type === "Request") && (
+        <>
+        <Button onClick={handleAccept} data-userid={notification.user.id} data-notificationid={notification.id}>
+          <Check/>
+        </Button>
+        <Button onClick={handleRead} data-notificationid={notification.id}>
+          <X/>
+        </Button>
+        </>
+      )
+      }
+    </div>
+    </div>
   )
 }

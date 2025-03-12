@@ -82,11 +82,14 @@ export const POST = auth(async function POST(req) {
             targetUser: {
               email: req.auth.user?.email as string
             }
+          },
+          {
+            type: 'Request'
           }
         ]
       }
     })
-    if(reverseNotificationExist){
+    if(reverseNotificationExist && type === 'Request'){
       await prisma.notification.update({
         where: {
           id: reverseNotificationExist.id
@@ -192,7 +195,11 @@ export const POST = auth(async function POST(req) {
                 id: targetId
             }
         },
-        content: content
+        content: content,
+        type
+      },
+      include:{
+        user: true,
       }
     });
 

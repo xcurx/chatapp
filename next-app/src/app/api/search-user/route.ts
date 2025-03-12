@@ -29,7 +29,7 @@ export const GET = auth(async (req) => {
                 where:{
                     users:{
                         some:{
-                            id: req.auth?.user.id
+                            email: req.auth?.user.email as string
                         }
                     }
                 }

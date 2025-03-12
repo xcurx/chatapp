@@ -41,7 +41,7 @@ export const GET = auth(async (req) => {
             users: true,
         }
     })
-    console.log(chats);
+    // console.log(chats);
     
   
     const chatsWithMessages = await Promise.all(chats.map(async chat => {
@@ -84,7 +84,7 @@ export const GET = auth(async (req) => {
         }
     }
 
-    console.log(chatsWithMessages);
+    // console.log(chatsWithMessages);
 
     return Response.json(
         {

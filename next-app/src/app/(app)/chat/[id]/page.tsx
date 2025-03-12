@@ -38,24 +38,23 @@ export default function Home() {
       id: uuidv4()
     }
     socketConnection?.socket?.emit('message', { message:receivedMessage, sendId:chat?.users.find((user) => user.id !== session?.user?.id)?.id })
-    // console.log(receivedMessage, chat?.users.find((user) => user.id !== session?.user?.id)?.id, session?.user?.id);
     setMessages((prev) => [...prev || [], receivedMessage]);
     setMessage('')
   }
 
   useEffect(() => {
-    if (!socketConnection?.socket) return;
-
-    // console.log("In socket", session?.user?.id, socketConnection.socket.id);
+    if (!socketConnection?.socket || !id) return;
 
     socketConnection?.socket.on("connect", () => {
       console.log("Socket connected", socketConnection?.socket.id);
     });
 
-    socketConnection?.socket.emit("subscribe", "receive-message");
-
+    socketConnection?.socket.emit("subscribe", {event:"receive-message", chatId:id});
+    socketConnection?.socket.emit("subscribe", {event:"receive-read-message", chatId:id});
+    socketConnection?.socket.emit("subscribe", {event:"receiver-status", chatId:id});
+    socketConnection?.socket.emit("subscribe", {event:"set-receive-status", chatId:id});
+    
     socketConnection?.socket.on("receive-message", (message: Message, type: string, fakeMesg: Message) => {
-      // console.log("Received message", message);
       if(type === "real" && fakeMesg){
         console.log("Updating message", message, fakeMesg, type);
         setMessages((prev) => (prev ? prev.map((mesg) => mesg.id === fakeMesg.id? message : mesg ) : []));
@@ -66,18 +65,15 @@ export default function Home() {
     });
 
     socketConnection?.socket.on("receive-read-message", (message:Message) => {
-      console.log("Received read message", message);
       setMessages((prev) => (prev ? prev.map((mesg) => mesg.id === message.id ? {...message, read:true} : mesg) : []));
     })
 
     socketConnection?.socket.on("receiver-status", (message:Message, userStatus:boolean) => {
-      // console.log("Receiver status", message, userStatus);
       if(!userStatus){
         console.log("User is offline");
         setMessages((prev) => (prev ? prev.map((mesg) => mesg.id === message.id ? {...message, received:false} : mesg) : []));
         axios.post("/api/message", { message:message.content, chatId:id, userId:session?.user?.id, received:false })
         .then((res) => {
-          console.log("Message sent", res?.data);
           setMessages((prev) => (prev ? prev.map((mesg) => mesg.id === message.id ? res?.data.sentMessage : mesg) : []));
           socketConnection?.socket?.emit("update-message", { message: res?.data.sentMessage, fakeMesg:message, userId:chat?.users.find((user) => user.id !== session?.user?.id)?.id  });
         })
@@ -86,40 +82,46 @@ export default function Home() {
       setMessages((prev) => (prev ? prev.map((mesg) => mesg.id === message.id ? {...message, received:true} : mesg) : []));
       axios.post("/api/message", { message:message.content, chatId:id, userId:session?.user?.id, received:true })
       .then((res) => {
-        console.log("Message sent", res?.data);
         setMessages((prev) => (prev ? prev.map((mesg) => mesg.id === message.id ? res?.data.sentMessage : mesg) : []));
-        console.log("bhai",chat)
         socketConnection?.socket?.emit("update-message", { message: res?.data.sentMessage, fakeMesg:message, userId:chat?.users.find((user) => user.id !== session?.user?.id)?.id  });
       })
     })
 
     socketConnection?.socket.on("set-receive-status", (message:Message) => {
-      // console.log("Setting receive status", message);
-      setMessages((prev) => (prev ? prev.map((mesg) => mesg.id === message.id ? {...message, received:true} : mesg) : []));
+      if(!messages) return
+      const mesg = messages[messages.length-1]
+      if(mesg?.received) return;
+      message.received = true;
+      setMessages((prev) => (prev ? prev.map((mesg) => mesg.id === message.id ? message : mesg) : []));
     })
 
     socketConnection?.socket.on("disconnect", () => {
-      socketConnection?.socket.emit("unsubscribe", "receive-message");
+      socketConnection?.socket.emit("unsubscribe", {event:"receive-message", chatId:id});
+      socketConnection?.socket.emit("unsubscribe", {event:"receive-read-message", chatId:id});
+      socketConnection?.socket.emit("unsubscribe", {event:"receiver-status", chatId:id});
+      socketConnection?.socket.emit("unsubscribe", {event:"set-receive-status", chatId:id});
       console.log("Socket disconnected");
     });
 
     return () => {
-      socketConnection?.socket.emit("unsubscribe", "receive-message");
-      socketConnection?.socket?.off("connect");
-      socketConnection?.socket?.off("receive-message");
-      socketConnection?.socket?.off("receiver-status");
-      socketConnection?.socket?.off("set-receive-status");
-      socketConnection?.socket?.off("receive-read-message");
-      socketConnection?.socket?.off("disconnect");
+      socketConnection.socket.emit("unsubscribe", {event:"receive-message", chatId:id});
+      socketConnection?.socket.emit("unsubscribe", {event:"receive-read-message", chatId:id});
+      socketConnection?.socket.emit("unsubscribe", {event:"receiver-status", chatId:id});
+      socketConnection?.socket.emit("unsubscribe", {event:"set-receive-status", chatId:id});
+      socketConnection.socket?.off("connect");
+      socketConnection.socket?.off("receive-message");
+      socketConnection.socket?.off("receiver-status");
+      socketConnection.socket?.off("set-receive-status");
+      socketConnection.socket?.off("receive-read-message");
+      socketConnection.socket?.off("disconnect");
     };
-  }, [socketConnection, session?.user?.id, id, chat])
+  }, [socketConnection?.socket, id, chat])
 
   const getChat = async () => {
     const res = await axios.get(`/api/get-chat/${id}`);
     if(!res?.data){
       return
     }
-    console.log("Chat fetched", res?.data.data);
     setChat(res?.data.data);
     setMessages(res?.data.data.messages.reverse());
   }
@@ -146,9 +148,9 @@ export default function Home() {
         </div>
         {
           socketConnection?.socket && (
-            <div className="w-full p-1 flex space-x-3">
+            <div className="w-full py-2 px-3 flex space-x-3">
               <Input
-               className="border-gray-400" 
+               className="border-zinc-600 focus:border-zinc-400" 
                value={message} 
                placeholder="Type a message"
                onChange={(e) => setMessage(e.target.value)}
@@ -183,7 +185,6 @@ const ChatComponent = memo(({message, user, socket}:{message:Message, user:UserW
         return;
       }
       socket.emit("read-message", { message });
-      console.log("Observing", message.id);
       observer.observe(messageRef.current);
     }
 
@@ -197,7 +198,7 @@ const ChatComponent = memo(({message, user, socket}:{message:Message, user:UserW
 
   return (
     <div ref={messageRef} className={`flex m-3 ${message.userId === user.id? "justify-end" : "justify-start"}`}>
-      <div className="relative p-2 bg-gray-800 text-white rounded-lg">
+      <div className="relative p-2 bg-zinc-800 text-white rounded-lg">
         <div className="mr-5">
           {message.content}
         </div>
@@ -207,8 +208,8 @@ const ChatComponent = memo(({message, user, socket}:{message:Message, user:UserW
               { message.received?  
                 message.read ? 
                 (<CheckCheck className="w-3 text-blue-500"/>) : 
-                (<CheckCheck className="w-3 text-gray-400"/>) :
-                <Check className="w-3 text-gray-400"/> 
+                (<CheckCheck className="w-3 text-zinc-400"/>) :
+                <Check className="w-3 text-zinc-400"/> 
               }
             </div>
           )
