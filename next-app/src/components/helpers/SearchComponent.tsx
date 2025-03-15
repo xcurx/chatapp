@@ -6,14 +6,15 @@ import axios, { AxiosResponse } from 'axios'
 import { Check, Loader, Plus } from 'lucide-react'
 import Image from 'next/image'
 import React, { useContext, useState } from 'react'
-import { SocketContext } from '../layout'
+import { SocketContext } from '../../app/(app)/layout'
 import { toast } from "sonner"
+
 interface UpdatedUser extends User {
     targetNotifications: Notification[];
     chats: Chat[]
 }
 
-const Page = () => {
+const SearchComponent = () => {
     const [query, setQuery] = useState<string>('')
     const [searchResults, setSearchResults] = useState<UpdatedUser[]>([])
     const [loading, setLoading] = useState<string>("")
@@ -44,7 +45,7 @@ const Page = () => {
                 setSearchResults(updatedUser)
                 setLoading("")
                 toast.success(res.data.message)
-                socketConnection?.socket.emit('notification', { notification: res?.data.data })
+                socketConnection?.socket.emit('notification', { targetId, notification: res?.data.data })
             }
         } catch (error) {
             if (axios.isAxiosError(error)) {
@@ -63,7 +64,7 @@ const Page = () => {
         <Input 
          value={query} 
          onChange={(e) => setQuery(e.target.value)}
-         className='sm:w-[400px] xs:w-[300px] w-[200px] xs:text-base text-sm text-white border-zinc-600'
+         className='w-[400px] text-white border-zinc-600'
         />
         <Button onClick={handleSearch}>Search</Button>
        </div>
@@ -71,7 +72,7 @@ const Page = () => {
        <div className='w-full mt-5 flex flex-col space-y-6 items-center'>
             {
                 searchResults && searchResults.map((user) => (
-                    <div key={user.id} className='flex items-center justify-between p-3 space-x-3 mt-3 xs:w-[400px] w-[300px] bg-zinc-900 border-2 border-zinc-700 rounded-md'>
+                    <div key={user.id} className='flex items-center justify-between p-3 space-x-3 mt-3 w-[400px] bg-zinc-900 border-2 border-zinc-700 rounded-md'>
                        <div className='flex items-center space-x-3'>
                             <div className='w-10 h-10 rounded-full bg-gray-800'>
                                  <Image src={user.avatar} width={40} height={40} alt='avatar' className='w-full rounded-full'/>
@@ -104,4 +105,4 @@ const Page = () => {
   )
 }
 
-export default Page
+export default SearchComponent

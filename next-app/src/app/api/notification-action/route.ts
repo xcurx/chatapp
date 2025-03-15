@@ -1,41 +1,105 @@
 import { auth } from "@/lib/auth";
 import { PrismaClient } from "@prisma/client";
+import { NextResponse } from "next/server";
 
 const prisma = new PrismaClient();
 
 export const PATCH = auth(async (req) => {
-    const { notificationId } = await req.json();
+  try {
+    const { notificationId, action } = await req.json();
 
-    if(!notificationId) {
-        return Response.json(
-            { error: "notificationId is required" },
-            { status: 400 }
-        );
+    if(!notificationId || typeof action !== "boolean"){
+      return NextResponse.json(
+        { error: "notificationId and action is required" },
+        { status: 400 }
+      );
+    }
+
+    if(!req.auth?.user){
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const notification = await prisma.notification.findUnique({
-        where: { id: notificationId }
-    });
-    if(!notification) {
-        return Response.json(
-            { error: "notification not found" },
-            { status: 404 }
-        );
-    }
-    if(notification.read) {
-        return Response.json(
-            { error: "notification already read" },
-            { status: 400 }
-        );
-    }
-
-    await prisma.notification.update({
-        where: { id: notificationId },
-        data: { read: true }
+      where: { id: notificationId },
     });
 
-    return Response.json(
-        { message: "notification updated" },
-        { status: 200 }
-    )
-})
+    if(!notification){
+      return NextResponse.json(
+        { error: "notification not found" },
+        { status: 404 }
+      );
+    }
+
+    if(notification.accepted){
+      return NextResponse.json(
+        { error: "notification already accepted" },
+        { status: 400 }
+      );
+    }
+
+    const updatedNotification = await prisma.notification.update({
+      where: { id: notificationId },
+      data: { accepted: action },
+    });
+
+    if(updatedNotification.accepted){
+      const user1 = await prisma.user.findUnique({
+        where: { email: req.auth.user?.email as string },
+      });
+      const user2 = await prisma.user.findUnique({
+        where: { email: updatedNotification.userEmail },
+      });
+
+      if(user1 && user2){
+        const chat = await prisma.chat.create({
+          data: {
+            name: `${user1.name}-${user2.name}`,
+            users: {
+              connect: [{ id: user1.id }, { id: user2.id }],
+            },
+          },
+        });
+
+        const sentNotification = await prisma.notification.create({
+          data: {
+            user: {
+              connect: {
+                email: req.auth.user?.email as string,
+              },
+            },
+            targetUser: {
+              connect: {
+                id: user2.id,
+              },
+            },
+            content: "accepted your message request",
+            type: "Accept",
+          },
+          include:{
+            user: true,
+          }
+        });
+
+        if(!chat){
+          return NextResponse.json(
+            { error: "Failed to create chat" },
+            { status: 500 }
+          );
+        }
+
+        return NextResponse.json(
+          {
+            message: "notification updated",
+            data: sentNotification,
+          },
+          { status: 200 }
+        );
+      }
+    }
+
+    return NextResponse.json({ message: "Notification updated" }, { status: 200 });
+  } catch (error) {
+    console.error(error);
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+  }
+});

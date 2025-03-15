@@ -9,11 +9,12 @@ import { Message, User as UserDB } from "@prisma/client";
 import { io, Socket } from "socket.io-client";
 import { Chat, Notification } from "@prisma/client";
 import { usePathname, useRouter } from "next/navigation";
-import { Bell, BellDot, Check, Loader, X } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Toaster } from "@/components/ui/sonner";
-import { toast } from "sonner";
+import ChatComponent from "@/components/helpers/ChatComponent";
+import NotificationDialog from "@/components/helpers/NotificationDialog";
+import { Search } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import Loader from "@/components/helpers/Loader";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -29,7 +30,7 @@ export interface UserWithId extends User {
   id: string;
 }
 
-interface ChatWithLastMessage extends Chat {
+export interface ChatWithLastMessage extends Chat {
   messages: Message[];
   users: UserDB[];
 }
@@ -50,8 +51,13 @@ export default function RootLayout({
   const [socket, setSocket] = useState<Socket | null>(null);
   const [chats, setChats] = useState<ChatWithLastMessage[] | null>(null);
   const router = useRouter();
-  const pathname = usePathname().split("/").pop();
+  const url = usePathname().split("/")
+  const chatId = url.pop();
+  const pathname = url.pop();
   const [unreadMessages, setUnreadMessages] = useState<{[key:string]: Message[]}>({});
+  const [currentChat, setCurrentChat] = useState<ChatWithLastMessage | null>(null);
+  const [currentOnlineUser, setCurrentOnlineUser] = useState<boolean>();
+  const [currentUserTyping, setCurrentUserTyping] = useState<boolean>(false);
 
   const getId = async () => {
     if(!session?.user?.email) return;
@@ -60,29 +66,29 @@ export default function RootLayout({
     return res;
   }
 
+
   const getChats = async () => {
     if(!user) return;
     await axios.get(`/api/get-chats/${user?.id}`)
     .then((res) => {
-      console.log("chats",res?.data?.data);
       setChats(res?.data?.data);
       setUnreadMessages(() => {
         const chats = res?.data?.data.reduce((acc: { [key: string]: Message[] }, chat: ChatWithLastMessage) => {
           acc[chat.id] = chat.messages?.filter((message) => {
-            if(message.userId !== user?.id && !message.read){
-              socket?.emit("change-receive-status", { message });
+            if(message.userId !== user?.id && !message.received && !message.read){
+              socket?.emit("message-received", { messageId:message.id });
             }
             return message.userId !== user?.id && !message.read
           }) || [];
           return acc;
         }, {});
         return chats;
-      });      
-    })
-  }
+      });     
 
-  if(chats){
-    console.log("path",pathname,chats[0]?.id);
+      res?.data?.data?.forEach((chat:ChatWithLastMessage) => {
+        socket?.emit("join-room", { id: chat.id }); 
+      })
+    })
   }
 
   useEffect(() => {
@@ -91,109 +97,169 @@ export default function RootLayout({
          if(!res?.data?.data.id){
             return;
          }
-         setSocket(io('http://localhost:8000', {
+         const socket = io('http://localhost:8000', {
           query: {
             userId: res?.data?.data.id
           }
-        }))
+         })
+         if(socket.active){
+            console.log("socket loaded")
+            setSocket(socket)
+         }
     })
   }, [status,setUser]);
 
   useEffect(() => {
-    if(socket){
-      socket.on("background-message", (message:Message, type:string, fakeMesg:Message) => {
-        console.log("Received message in background", message.content);
-        if(type === "real" && fakeMesg){
-          console.log("bg",message)
-          socket.emit("change-receive-status", { message:message });
-          setUnreadMessages((prev) => {
-            return {
-              ...prev,
-              [message.chatId]: prev[message.chatId].map((mesg) => mesg.id === fakeMesg.id ? message : mesg)
-            }
-          })
-          return;
-        }
+    if(!socket) return;
 
-        setUnreadMessages((prev) => {
-          if(!prev[message.chatId]){
-            return {
-              ...prev,
-              [message.chatId]: [message]
-            }
-          }
+    socket.on("receive-message-background", (message:Message) => {
+      if(message.userId === user?.id) return;
+
+      setUnreadMessages((prev) => {
+        if(!prev[message.chatId]){
           return {
             ...prev,
-            [message.chatId]: [...prev[message.chatId], message]
+            [message.chatId]: [message]
           }
-        })
+        }
+        return {
+          ...prev,
+          [message.chatId]: [...prev[message.chatId], message]
+        }
       })
-    }
+    })
+
+    socket.on("update-message-id-background", ({ tempMessage, realMessage }) => {
+      if(realMessage.userId === user?.id) return;
+
+      setUnreadMessages((prev) => ({
+        ...prev,
+        [tempMessage.chatId]: prev[tempMessage.chatId].map(
+          (message) => message.id === tempMessage.id ? realMessage : message
+        )
+      }));
+      socket.emit("message-received", { messageId: realMessage.id });
+    });
+    
 
     return () => {
-      socket?.off("connect");
-      socket?.off("background-message");
+      socket?.off("receive-message-background");
+      socket?.off("update-message-id-background");
     }
-  }, [socket, pathname])
+  }, [socket, chatId])
 
   useEffect(() => {
     if(user){
       getChats();
     }
-  }, [user, pathname]);
+  }, [user, chatId]);
 
-  return  (
-      <div
-        className={`${geistSans.variable} ${geistMono.variable} bg-zinc-950 antialiased flex flex-col h-screen overflow-hidden`}
+  useEffect(() => {
+    setCurrentChat(chats?.find((chat) => chat.id === chatId)|| null);
+  },[chatId, url])
+
+  useEffect(() => {
+    if(socket && user && currentChat){
+      const currentUser = currentChat.users.filter((u) => u.id !== user.id)[0].id
+      socket.emit("join-room", { id: currentUser });
+
+      socket.emit("online-status", { userId: currentUser, sendId: user.id });
+
+      socket?.on("online-status",(userId:string, status) => {
+        console.log("online-status",userId);
+        if(userId === currentUser){
+          console.log("online",userId);
+          setCurrentOnlineUser(status);
+        }
+      })
+
+      socket.on("typing", (userId:string, status:boolean) => {
+        if(userId === currentUser){
+          setCurrentUserTyping(status);
+        }
+      })
+    }
+
+    return () => {
+      setCurrentOnlineUser(false);
+      setCurrentUserTyping(false);
+      socket?.emit("leave-room", { id: currentChat?.users.filter((u) => u.id !== user?.id)[0].id });
+      socket?.off("online-status");
+      socket?.off("typing");
+    }
+  },[currentChat, socket])
+
+
+  if(!user || !socket || !chats){
+    return <div className="w-full h-screen flex justify-center items-center"><Loader/></div>
+  }
+
+  return (
+    <>
+      { (user && socket && chats && unreadMessages) && (
+        <div
+         className={`${geistSans.variable} ${geistMono.variable} bg-zinc-950 antialiased flex flex-col h-screen overflow-hidden`}
+         suppressHydrationWarning
         >
-        <nav className="w-full border-t-2  border-b-2 border-zinc-700">
-          <div className="w-full text-white p-3 flex justify-end space-x-3">
-             {/* <Button onClick={create}>Create Chat</Button> */}
-             <Button onClick={() => router.push("/search")}>Add User</Button>
-             <Button onClick={() => router.push("/profile")}>
-                  Profile
-             </Button>
-             {socket && user && <NotificationDialog user={user} socket={socket} getChats={getChats}></NotificationDialog>}
-          </div>
-        </nav>
-        <main className="flex flex-1 h-full text-black overflow-hidden">
-          <div className="bg-zinc-950 2xl:w-1/3 xl:w-2/5 lg:w-[45%] hidden lg:flex flex-col justify-start border-r-2 border-zinc-700 overflow-auto">
-             {
-                unreadMessages && chats?.map((chat) => (
-                  <div 
-                   key={chat.id} 
-                   className={`p-3 text-white ${pathname===chat.id? "bg-zinc-800":"bg-zinc-950"} flex space-x-3 border-b-2 border-zinc-700 cursor-pointer"`}
-                   onClick={() => router.push(`/chat/${chat.id}`)}
-                  >
-                    <div>
-                      <Avatar>
-                          <AvatarImage src={chat.users.filter((u) => u.name !== user?.name)[0].avatar}/>
-                          <AvatarFallback className="bg-zinc-700">
-                              {chat.name.split('-').filter((name) => name !== user?.name)[0][0]}
-                          </AvatarFallback>
-                      </Avatar>
-                    </div>
-                    <div className="flex-1">
-                      <div className="xl:text-lg text-base">{chat.name.split('-').filter((name) => name !== user?.name)[0]}</div>
-                      <div className="w-full text-sm text-gray-200 text-ellipsis">
-                        {
-                          pathname!==chat.id ? (unreadMessages[chat.id] && unreadMessages[chat.id]?.length>0) ? (
-                           <div className="w-full flex justify-between">
-                              <span className="text-green-500"> 
-                                {unreadMessages[chat.id]?.[unreadMessages[chat.id]?.length - 1]?.content}
-                              </span>
-                              <span className="text-white rounded-full bg-green-500 text-xs">
-                                {unreadMessages[chat.id].length.toString()}
-                              </span>
-                           </div>
-                          ) : chat.messages[0]?.content ? chat.messages[0]?.content : "No messages" : null
-                        }
-                      </div>
+        <nav className="w-full border-t-[1px] flex justify-between items-center border-b-[1px] border-zinc-700">
+            <div className={`2xl:w-[450px] xl:w-[350px] lg:w-[300px] lg:flex ${!chatId || chatId==="search"? "w-full flex" : "hidden"} justify-between items-center border-r-[1px] border-zinc-700 p-4 text-white`}>
+              <div>
+                Chat App
+              </div>
+              <div className="lg:hidden flex space-x-3">
+                {/* {user && socket && <DropdownMenuComponent socket={socket} user={user} getChats={getChats}/>} */}
+                <Button 
+                 onClick={() => router.push("/search")}
+                 variant={"outline"}
+                >
+                  <Search/>
+                </Button>
+                {socket && user && <NotificationDialog user={user} socket={socket} getChats={getChats}></NotificationDialog>}
+              </div>
+            </div>
+            <div className={`h-full lg:flex lg:w-auto ${pathname === "chat"? "w-full flex" : "hidden"} flex-1 justify-between items-center text-white`}>
+              <div className="h-full">
+               {
+                  currentChat && (
+                  <div className="py-2 px-3 flex items-center space-x-3">
+                    <Avatar>
+                      <AvatarImage src={currentChat.users.filter((u) => u.id !== user?.id)[0].avatar}/>
+                      <AvatarFallback>
+                        {currentChat.users.filter((u) => u.id !== user?.id)[0].name[0]}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex flex-col justify-center">
+                        <div>
+                            {currentChat.users.filter((u) => u.id !== user?.id)[0].name}
+                        </div>
+                        <div className="text-xs text-blue-500">
+                          {currentUserTyping? "Typing..." : currentOnlineUser ? "Online" : "Offline"}
+                        </div>
                     </div>
                   </div>
+                  )
+               }
+              </div>
+              <div className="h-full flex justify-end items-center space-x-3 px-3 py-1 border-l-[1px] border-zinc-700">
+                <Button 
+                 onClick={() => router.push("/search")}
+                 variant={"outline"}
+                >
+                  <Search/>
+                </Button>
+                {socket && user && <NotificationDialog user={user} socket={socket} getChats={getChats}></NotificationDialog>}
+              </div>
+            </div>
+        </nav>
+        <main className="relative flex flex-1 h-full text-black overflow-hidden">
+          <div className={`bg-zinc-950 2xl:w-[450px] xl:w-[350px] lg:w-[300px] ${!chatId? "w-full" : "hidden"} lg:flex flex-col justify-start border-r-[1px] border-zinc-700 overflow-auto`}>
+             {
+                user && unreadMessages && chats?.map((chat) => (
+                  <ChatComponent key={chat.id} chat={chat} user={user} pathname={chatId as string} unreadMessages={unreadMessages}/>
                 ))
              }
           </div>
+          <div className={`flex-1 h-full lg:block ${chatId? "w-full" : "hidden"}`}>
           {
             (user && socket) ? (
               <UserContext.Provider value={{ user }}>
@@ -205,154 +271,12 @@ export default function RootLayout({
               <div className="text-white animate-spin m-auto h-10 w-10 rounded-full border-t-[3px] border-white"></div>
             )
           }
+          </div>
         </main>
-
         <Toaster/>
       </div>
-  );
+    )}
+  </>
+  );  
 }
 
-const NotificationDialog = ({ user, socket, getChats }:{ user:UserWithId, socket:Socket, getChats:() => void }) => {
-  const [notifications, setNotifications] = useState<NotificationWithUser[]>([]);
-  const [hasUnread, setHasUnread] = useState<boolean>(false);
-  const [loading, setLoading] = useState<string>("");
-
-  const geiNotifications = async () => {
-    const res = await axios.get(`/api/get-notifications/${user.id}`)
-    // console.log(res?.data?.data)
-    setNotifications(res?.data?.data)
-  }
-
-  const handleRead = async (e:React.MouseEvent<HTMLButtonElement>) => {
-    const notificationId = e.currentTarget?.getAttribute('data-notificationid');
-    if(!notificationId) return;
-    setLoading(notificationId);
-    const res = await axios.patch(`/api/notification-action`, { notificationId });
-    if(res?.data?.message){
-      geiNotifications()
-      .then(() => setLoading(""))
-      toast.success("Request rejected");
-    }
-  }
-
-  const handleAccept = async (e:React.MouseEvent<HTMLButtonElement>) => {
-    const userId = e.currentTarget?.getAttribute('data-userid');
-    const notificationId = e.currentTarget?.getAttribute('data-notificationid') as string
-    if(!userId) return;
-    setLoading(notificationId);
-    const res = await axios.post(`/api/create-chat`, { user1: user.id, user2: userId });
-    getChats();
-    // console.log(res?.data?.data)
-    if(res?.data?.data){
-      const res = await axios.patch(`/api/notification-action`, { notificationId });
-      if(res?.data?.message){
-        const notification = await axios.post(`/api/notification`, { targetId: userId, type: "Accept" });
-        socket.emit('notification', { targetId: userId, notification: notification?.data.data })
-        geiNotifications()
-        .then(() => setLoading(""))
-        toast.success("Chat created");
-      }
-    }
-  }
-
-  useEffect(() => {
-    socket.on("receive-notification", (notification:NotificationWithUser) => {
-      console.log("Received notification", notification);
-      if(notification.type === "Accept"){
-        getChats();
-      }
-      setNotifications((prev) => {
-        return [...prev, notification]
-      })
-    })
-
-    return () => {
-      socket?.off("receive-notification");
-    }
-  }, [socket])
-
-  useEffect(() => {
-    setHasUnread(notifications.some((notification) => !notification.read))
-  },[notifications])
-
-  useEffect(() => {
-    geiNotifications()
-  },[])
-
-  return (
-    <Dialog>
-      <DialogTrigger className="cursor-pointer bg-white py-1 px-3 rounded-lg">
-        {
-          hasUnread ? (
-            <BellDot className="text-black"/>
-          ) : (
-            <Bell className="text-black"/>
-          )
-        }
-      </DialogTrigger>
-      <DialogContent className="flex flex-col items-center">
-        <DialogHeader className="flex flex-col items-center">
-          <DialogTitle className="text-2xl">Notifications</DialogTitle>
-          <div className="mt-3">
-            {
-              notifications?.map((notification) => (
-                <NotificationComponent 
-                  key={notification.id} 
-                  notification={notification} 
-                  handleAccept={handleAccept} 
-                  handleRead={handleRead}
-                  loading={loading}
-                />
-              ))
-            }
-          </div>
-        </DialogHeader>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-const NotificationComponent = ({ 
-  notification, 
-  handleAccept, 
-  handleRead,
-  loading
-}:{ 
-  notification:NotificationWithUser, 
-  handleAccept: (e: React.MouseEvent<HTMLButtonElement>) => void, 
-  handleRead: (e: React.MouseEvent<HTMLButtonElement>) => void,
-  loading: string
-}) => {
-  return (
-    <div className="flex items-center justify-between space-x-3 my-4 border-2 rounded-md p-3">
-    <div className="flex items-center space-x-3">
-       <div>
-        <Avatar className="flex justify-center items-center bg-gray-600">
-        <AvatarImage src={notification.user.avatar}/>
-        <AvatarFallback className="flex items-center justify-center">{notification.user.name[0]}</AvatarFallback>
-        </Avatar>
-      </div>
-      <div className="flex flex-col space-y-1">
-        <span>{notification.user.name}</span>
-        <span>{notification.content}</span>
-      </div>
-    </div>
-    <div className="flex space-x-2">
-      {
-      loading===notification.id && !notification.read ? (
-        <Loader/>
-      ) : (!notification.read && notification.type === "Request") && (
-        <>
-        <Button onClick={handleAccept} data-userid={notification.user.id} data-notificationid={notification.id}>
-          <Check/>
-        </Button>
-        <Button onClick={handleRead} data-notificationid={notification.id}>
-          <X/>
-        </Button>
-        </>
-      )
-      }
-    </div>
-    </div>
-  )
-}

@@ -58,7 +58,7 @@ export default {
   		},
 		screens:{
 			'xs':"450px",
-			'2xl':"1450px"
+			'2xl':"1500px"
 		}
   	}
   },

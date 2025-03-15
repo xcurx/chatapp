@@ -32,11 +32,6 @@ export const GET = auth(async (req) => {
             id: chatId
         },
         include: {
-            messages: {
-                orderBy: {
-                    createdAt: 'desc'    
-                }
-            },
             users: true
         }
     })
@@ -48,25 +43,6 @@ export const GET = auth(async (req) => {
             },
             { status: 500 }
         )
-    }
-
-    for(let i = 0; i < chat.messages.length; i++){
-        const message = chat.messages[i];
-
-        if(chat.users.find((u) => u.email === req.auth?.user?.email)?.id === message.userId){
-            continue;
-        }
-        if(message.received){
-            continue;
-        }
-        await prisma.message.update({
-            where: {
-                id: message.id
-            },
-            data: {
-                received: true
-            }
-        })
     }
 
     return Response.json(

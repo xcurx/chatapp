@@ -95,7 +95,8 @@ export const POST = auth(async function POST(req) {
           id: reverseNotificationExist.id
         },
         data: {
-          read: true
+          read: true,
+          accepted: true
         }
       });
       const user1 = await prisma.user.findUnique({
@@ -196,7 +197,8 @@ export const POST = auth(async function POST(req) {
             }
         },
         content: content,
-        type
+        type,
+        accepted: type === 'Request' ? false : undefined
       },
       include:{
         user: true,
