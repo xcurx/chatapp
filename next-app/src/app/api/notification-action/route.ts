@@ -4,7 +4,9 @@ import { NextResponse } from "next/server";
 
 const prisma = new PrismaClient();
 
-export const PATCH = auth(async (req) => {
+export const PATCH = async (req:Request) => {
+  const session = await auth();
+   
   try {
     const { notificationId, action } = await req.json();
 
@@ -15,7 +17,7 @@ export const PATCH = auth(async (req) => {
       );
     }
 
-    if(!req.auth?.user){
+    if(!session?.user){
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -44,7 +46,7 @@ export const PATCH = auth(async (req) => {
 
     if(updatedNotification.accepted){
       const user1 = await prisma.user.findUnique({
-        where: { email: req.auth.user?.email as string },
+        where: { email: session.user?.email as string },
       });
       const user2 = await prisma.user.findUnique({
         where: { email: updatedNotification.userEmail },
@@ -64,7 +66,7 @@ export const PATCH = auth(async (req) => {
           data: {
             user: {
               connect: {
-                email: req.auth.user?.email as string,
+                email: session.user?.email as string,
               },
             },
             targetUser: {
@@ -102,4 +104,4 @@ export const PATCH = auth(async (req) => {
     console.error(error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
-});
+};

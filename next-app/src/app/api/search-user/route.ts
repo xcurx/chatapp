@@ -3,8 +3,10 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-export const GET = auth(async (req) => {
-    if(!req.auth?.user){
+export const GET = async (req:Request) => {
+    const session = await auth();
+
+    if(!session?.user){
         return Response.json(
             {
                 success: false,
@@ -29,14 +31,14 @@ export const GET = auth(async (req) => {
                 where:{
                     users:{
                         some:{
-                            email: req.auth?.user.email as string
+                            email: session?.user.email as string
                         }
                     }
                 }
             },
             targetNotifications:{
                 where:{
-                    userEmail: req.auth?.user.email as string
+                    userEmail: session?.user.email as string
                 }
             }
         }
@@ -50,4 +52,4 @@ export const GET = auth(async (req) => {
         },
         { status: 200 }
     )
-})
+}

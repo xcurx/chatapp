@@ -3,10 +3,11 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-export const PATCH = auth(async (req) => {
+export const PATCH = async (req:Request) => {
     const { messageId } = await req.json()
+    const session = await auth();
 
-    if(!req?.auth?.user){
+    if(!session?.user){
         return Response.json(
             {
                 success: false,
@@ -46,9 +47,8 @@ export const PATCH = auth(async (req) => {
             id: messagesExists?.userId
         }
     })
-    console.log(sender?.email, req?.auth?.user?.email);
 
-    if(sender?.email === req?.auth?.user?.email){
+    if(sender?.email === session.user?.email){
         return Response.json(
             {
                 success: false,
@@ -75,4 +75,4 @@ export const PATCH = auth(async (req) => {
         },
         { status: 200 }
     )
-}) 
+}

@@ -3,8 +3,10 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-export const POST = auth(async function POST(req) {
-    if(!req.auth){
+export const POST = async function POST(req:Request) {
+    const session = await auth();
+
+    if(!session?.user){
       return Response.json(
           {message: 'Unauthorized'},
           {status: 401}
@@ -32,7 +34,7 @@ export const POST = auth(async function POST(req) {
       )
     }
 
-    if(targetUserExists.email === req.auth.user?.email){
+    if(targetUserExists.email === session.user?.email){
       if(type === 'Request'){
         return Response.json(
             {message: 'Cannot send request to self'},
@@ -52,7 +54,7 @@ export const POST = auth(async function POST(req) {
         AND: [
           {
             user: {
-              email: req.auth.user?.email as string
+              email: session.user?.email as string
             }
           },
           {
@@ -80,7 +82,7 @@ export const POST = auth(async function POST(req) {
           },
           {
             targetUser: {
-              email: req.auth.user?.email as string
+              email: session.user?.email as string
             }
           },
           {
@@ -104,7 +106,7 @@ export const POST = auth(async function POST(req) {
       });
       const user1 = await prisma.user.findUnique({
         where: {
-          email: req.auth.user?.email as string
+          email: session.user?.email as string
         }
       })
       const user2 = await prisma.user.findUnique({
@@ -130,7 +132,7 @@ export const POST = auth(async function POST(req) {
         data: {
           user: {
             connect: {
-              email: req.auth.user?.email as string
+              email: session.user?.email as string
             }
           },
           targetUser: {
@@ -165,7 +167,7 @@ export const POST = auth(async function POST(req) {
             {
               users: {
                 some: {
-                  email: req.auth.user?.email as string
+                  email: session.user?.email as string
                 }
               }
             },
@@ -200,7 +202,7 @@ export const POST = auth(async function POST(req) {
       data: {
         user:{
             connect: {
-                email: req.auth.user?.email as string
+                email: session.user?.email as string
             }
         },
         targetUser: {
@@ -224,4 +226,4 @@ export const POST = auth(async function POST(req) {
         },
         {status: 201}
     )
-})
+}

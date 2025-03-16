@@ -3,26 +3,34 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-export const PATCH = auth(async (req) => {
+export const PATCH = async (req:Request) => {
+    const session = await auth();
     const { notificationId } = await req.json();
 
-    if(!notificationId) {
+    if(!notificationId){
         return Response.json(
             { error: "notificationId is required" },
             { status: 400 }
         );
     }
 
+    if(!session?.user){
+        return Response.json(
+            { error: "unauthorized" },
+            { status: 401 }
+        );
+    }
+
     const notification = await prisma.notification.findUnique({
         where: { id: notificationId }
     });
-    if(!notification) {
+    if(!notification){
         return Response.json(
             { error: "notification not found" },
             { status: 404 }
         );
     }
-    if(notification.read) {
+    if(notification.read){
         return Response.json(
             { error: "notification already read" },
             { status: 400 }
@@ -38,4 +46,4 @@ export const PATCH = auth(async (req) => {
         { message: "notification updated" },
         { status: 200 }
     )
-})
+}

@@ -3,8 +3,10 @@ import { Message, PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-export const GET = auth(async (req) => {
-    if(!req.auth?.user){
+export const GET = async () => {
+    const session = await auth();   
+    
+    if(!session?.user){
         Response.json(
             {
                 success: false,
@@ -16,7 +18,7 @@ export const GET = auth(async (req) => {
 
     const user = await prisma.user.findUnique({
         where: {
-            email: req.auth?.user?.email as string
+            email: session?.user?.email as string
         }
     })
     if(!user){
@@ -91,4 +93,4 @@ export const GET = auth(async (req) => {
             )),
         }
     );    
-})
+}
