@@ -23,7 +23,6 @@ const NotificationComponent = ({
     useEffect(() => {
       const observer = new IntersectionObserver(
         async ([entry]) => {
-          console.log("reading",entry.isIntersecting);
           if(entry.isIntersecting && !notification.read){
             await axios.patch(`/api/notification-read`, { notificationId: notification.id });
             setNotifications((prev) => prev.map((n) => n.id === notification.id ? {...n, read: true} : n))
@@ -33,7 +32,6 @@ const NotificationComponent = ({
       )
 
       if(notificationRef.current && !notification.read){
-        console.log("observing", notification.id);
         observer.observe(notificationRef.current);
       }
 

@@ -90,13 +90,16 @@ export const POST = auth(async function POST(req) {
       }
     })
     if(reverseNotificationExist && type === 'Request'){
-      await prisma.notification.update({
+      const updatedReverseNotification = await prisma.notification.update({
         where: {
           id: reverseNotificationExist.id
         },
         data: {
           read: true,
           accepted: true
+        },
+        include:{
+          user: true,
         }
       });
       const user1 = await prisma.user.findUnique({
@@ -123,7 +126,7 @@ export const POST = auth(async function POST(req) {
         })
       }
 
-      await prisma.notification.create({
+      const notification = await prisma.notification.create({
         data: {
           user: {
             connect: {
@@ -137,11 +140,20 @@ export const POST = auth(async function POST(req) {
           },
           content: 'accepted your message request',
           type: 'Accept'
+        },
+        include:{
+          user: true,
         }
       })
 
       return Response.json(
-          {message: 'Chat created'},
+          {
+            message: 'Chat created',
+            data: {
+              notification,
+              reverseNotification: updatedReverseNotification
+            }
+          },
           {status: 200}
       )
     }

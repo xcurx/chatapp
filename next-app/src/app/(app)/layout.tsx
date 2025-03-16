@@ -15,6 +15,7 @@ import NotificationDialog from "@/components/helpers/NotificationDialog";
 import { Search } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import Loader from "@/components/helpers/Loader";
+import LogoutDialog from "@/components/helpers/LogoutDialog";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -97,13 +98,12 @@ export default function RootLayout({
          if(!res?.data?.data.id){
             return;
          }
-         const socket = io('http://localhost:8000', {
+         const socket = io(process.env.NEXT_PUBLIC_SOCKET_URL, {
           query: {
             userId: res?.data?.data.id
           }
          })
          if(socket.active){
-            console.log("socket loaded")
             setSocket(socket)
          }
     })
@@ -166,9 +166,7 @@ export default function RootLayout({
       socket.emit("online-status", { userId: currentUser, sendId: user.id });
 
       socket?.on("online-status",(userId:string, status) => {
-        console.log("online-status",userId);
         if(userId === currentUser){
-          console.log("online",userId);
           setCurrentOnlineUser(status);
         }
       })
@@ -203,11 +201,10 @@ export default function RootLayout({
         >
         <nav className="w-full border-t-[1px] flex justify-between items-center border-b-[1px] border-zinc-700">
             <div className={`2xl:w-[450px] xl:w-[350px] lg:w-[300px] lg:flex ${!chatId || chatId==="search"? "w-full flex" : "hidden"} justify-between items-center border-r-[1px] border-zinc-700 p-4 text-white`}>
-              <div>
+              <div onClick={() => router.push("/")} className="cursor-pointer">
                 Chat App
               </div>
               <div className="lg:hidden flex space-x-3">
-                {/* {user && socket && <DropdownMenuComponent socket={socket} user={user} getChats={getChats}/>} */}
                 <Button 
                  onClick={() => router.push("/search")}
                  variant={"outline"}
@@ -215,6 +212,7 @@ export default function RootLayout({
                   <Search/>
                 </Button>
                 {socket && user && <NotificationDialog user={user} socket={socket} getChats={getChats}></NotificationDialog>}
+                <LogoutDialog/>
               </div>
             </div>
             <div className={`h-full lg:flex lg:w-auto ${pathname === "chat"? "w-full flex" : "hidden"} flex-1 justify-between items-center text-white`}>
@@ -248,6 +246,7 @@ export default function RootLayout({
                   <Search/>
                 </Button>
                 {socket && user && <NotificationDialog user={user} socket={socket} getChats={getChats}></NotificationDialog>}
+                <LogoutDialog/>
               </div>
             </div>
         </nav>

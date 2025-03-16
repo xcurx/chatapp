@@ -37,10 +37,10 @@ const ChatComponent = ({
           {
             pathname!==chat.id ? (unreadMessages[chat.id] && unreadMessages[chat.id]?.length>0) ? (
              <div className="w-full flex justify-between">
-                <span className="text-green-500"> 
+                <span className="text-[#0071FF]"> 
                   {unreadMessages[chat.id]?.[unreadMessages[chat.id]?.length - 1]?.content}
                 </span>
-                <span className="text-white rounded-full bg-green-500 text-xs">
+                <span className="text-white rounded-full w-5 h-5 flex justify-center items-center bg-blue-600 text-xs">
                   {unreadMessages[chat.id].length.toString()}
                 </span>
              </div>

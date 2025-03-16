@@ -5,7 +5,7 @@ import { Chat, Notification, User } from '@prisma/client'
 import axios, { AxiosResponse } from 'axios'
 import { Check, Loader, Plus } from 'lucide-react'
 import Image from 'next/image'
-import React, { useContext, useState } from 'react'
+import React, { useContext, useEffect, useState } from 'react'
 import { SocketContext } from '../layout'
 import { toast } from "sonner"
 interface UpdatedUser extends User {
@@ -15,15 +15,11 @@ interface UpdatedUser extends User {
 
 const Page = () => {
     const [query, setQuery] = useState<string>('')
+    const [debouncedQuery, setDebouncedQuery] = useState(query);
     const [searchResults, setSearchResults] = useState<UpdatedUser[]>([])
+    const [isSearching, setIsSearching] = useState<boolean>(false)
     const [loading, setLoading] = useState<string>("")
     const socketConnection = useContext(SocketContext)
-
-    const handleSearch = async () => {
-        if(!query) return;
-        const res = await axios.get(`/api/search-user`, { params: { query } })
-        setSearchResults(res?.data.data)
-    }
 
     const handleAdd = async (e: React.MouseEvent<HTMLButtonElement>) => {
         const targetId = e.currentTarget?.getAttribute('data-id');
@@ -44,6 +40,10 @@ const Page = () => {
                 setSearchResults(updatedUser)
                 setLoading("")
                 toast.success(res.data.message)
+                if(res.data.data.reverseNotification){
+                    socketConnection?.socket.emit('notification-update', { notification: res?.data.data.reverseNotification })
+                    socketConnection?.socket.emit('notification', { notification: res?.data.data.notification })
+                }
                 socketConnection?.socket.emit('notification', { notification: res?.data.data })
             }
         } catch (error) {
@@ -56,16 +56,45 @@ const Page = () => {
         }
     } 
 
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            if(query.trim()){
+                setDebouncedQuery(query);
+            }else{
+                setSearchResults([])
+            }
+        }, 200);
+
+        return () => clearTimeout(timer);
+    },[query]);
+
+    useEffect(() => {
+        const handleSearch = async (query:string) => {
+            const res = await axios.get(`/api/search-user`, { params: { query } })
+            setSearchResults(res?.data.data)
+            setIsSearching(false)
+        }
+
+        if(debouncedQuery){
+          handleSearch(debouncedQuery)
+        }else{
+          setIsSearching(false)
+          setSearchResults([])
+        }
+    },[debouncedQuery]);
+
   return (
     <div className='h-full flex flex-col items-center p-5 w-full'>
        <h1 className='text-3xl font-bold text-white'>Search</h1>
        <div className='flex space-x-3 items-center mt-5'>
         <Input 
          value={query} 
-         onChange={(e) => setQuery(e.target.value)}
+         onChange={(e) =>{ 
+            setQuery(e.target.value)
+            setIsSearching(true)
+        }}
          className='sm:w-[400px] xs:w-[300px] w-[200px] xs:text-base text-sm text-white border-zinc-600'
         />
-        <Button onClick={handleSearch}>Search</Button>
        </div>
 
        <div className='w-full mt-5 flex flex-col space-y-6 items-center'>
@@ -98,6 +127,9 @@ const Page = () => {
                        </div>
                     </div>
                 ))
+            }
+            {
+                !isSearching && searchResults.length === 0 && query && <span className='text-white'>No results found</span>
             }
        </div>
     </div>

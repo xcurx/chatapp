@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTrigger } from "../ui/dialog
 import { Bell, BellDot } from "lucide-react";
 import { DialogTitle } from "@radix-ui/react-dialog";
 import NotificationComponent from "./NotificationComponent";
+import { Button } from "../ui/button";
 
 const NotificationDialog = ({ 
   user, 
@@ -23,7 +24,7 @@ const NotificationDialog = ({
   
     const getNotifications = async () => {
       const res = await axios.get(`/api/get-notifications/${user.id}`)
-      setNotifications(res?.data?.data)
+      setNotifications(res?.data?.data.reverse())
     }
   
     const handleRead = async (e:React.MouseEvent<HTMLButtonElement>) => {
@@ -40,9 +41,7 @@ const NotificationDialog = ({
       const notificationId = e.currentTarget?.getAttribute('data-notificationid') as string
       if(!userId) return;
       setLoading(notificationId);
-      console.log("Accepting", userId, notificationId);
       const res = await axios.patch(`/api/notification-action`, { notificationId, action: true });
-      // console.log(res?.data?.data)
       if(res?.data?.data){
         socket.emit('notification', { notification: res?.data.data })
         getNotifications()
@@ -54,12 +53,25 @@ const NotificationDialog = ({
   
     useEffect(() => {
       socket.on("notification", (notification:NotificationWithUser) => {
-        console.log("Received notification", notification);
         if(notification.type === "Accept"){
           getChats();
         }
         setNotifications((prev) => {
           return [...prev, notification]
+        })
+      })
+
+      socket.on("notification-update", (notification:NotificationWithUser) => {
+        if(notification.type === "Accept"){
+          getChats();
+        }
+        setNotifications((prev) => {
+          return prev.map((prevNotification) => {
+            if(prevNotification.id === notification.id){
+              return notification
+            }
+            return prevNotification
+          })
         })
       })
   
@@ -78,9 +90,9 @@ const NotificationDialog = ({
   
     return (
       <Dialog>
-        <DialogTrigger suppressHydrationWarning className="cursor-pointer bg-white rounded-lg">
+        <DialogTrigger asChild className="cursor-pointer bg-white rounded-lg">
           {
-            <div className="px-4 py-2.5 bg-zinc-950 border-[1px] border-neutral-800 rounded-lg hover:bg-neutral-800">
+            <Button variant={"outline"} className="bg-zinc-950">
               {
                 hasUnread ? (
                   <BellDot size={15} className="text-white"/>
@@ -88,7 +100,7 @@ const NotificationDialog = ({
                   <Bell size={15} className="text-white"/>
                 )
               }
-            </div>
+            </Button>
           }
         </DialogTrigger>
         <DialogContent className="flex flex-col items-center sm:w-[500px] xs:w-[400px] w-[300px] sm:text-base xs:text-sm text-xs">

@@ -10,7 +10,7 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
-        origin: '*',
+        origin: process.env.CORS_ORIGIN,
         methods: ["GET", "POST"]
     },
 });
@@ -104,6 +104,10 @@ io.on('connection', (socket) => {
 
     socket.on("notification", ({notification}) => {
         io.to(sockets[notification.targetId]).emit("notification", notification);
+    })
+
+    socket.on("notification-update", async ({notification}) => {
+        io.to(sockets[notification.targetId]).emit("notification-update", notification);
     })
 
     socket.on("leave-room",({id}) => {

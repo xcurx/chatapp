@@ -49,7 +49,6 @@ export default function Home() {
         }
       });
       if(currentRef.scrollTop === 0){
-        console.log("Scrolled to top");
         if(hasMore){
           setLoadMore(prev => prev + 1);
         }
@@ -59,12 +58,7 @@ export default function Home() {
 
   useEffect(() => {
     if (!socketConnection?.socket || !id) return;
-    console.log("Socket connected to", socketConnection?.socket.id);
     socketConnection?.socket.emit("join-room", { id });
-    
-    socketConnection?.socket.on("connect", () => {
-      console.log("Socket connected", socketConnection?.socket.id);
-    });
     
     socketConnection?.socket.on("receive-message", (message:Message) => {
       setMessages((prev) => [...prev || [], message]);
@@ -130,7 +124,6 @@ export default function Home() {
 
   useEffect(() => {
     if(chatScrollRef.current){
-      console.log("Adding event listener");
       chatScrollRef.current.addEventListener("scroll", handleScroll);
     }
 
@@ -142,7 +135,6 @@ export default function Home() {
   }, [chat]);
 
   useEffect(() => {
-    console.log("Page changed", cursor);
     const getMessages = async (cursor:string) => {
       if(!hasMore) return;
       setLoadingMessages(true);

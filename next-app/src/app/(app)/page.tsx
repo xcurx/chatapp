@@ -4,23 +4,33 @@ import { Button } from "@/components/ui/button";
 import { useContext } from "react";
 import { UserContext } from "./layout";
 import axios from "axios";
-import Image from "next/image";
+import { Avatar, AvatarImage } from "@/components/ui/avatar";
 
 export default function Home() {
   const session = useContext(UserContext);
-  // console.log(session?.user,"in page");
 
   const handleSignOut = async () => {
-      await axios.post("/api/sign-out");
-      window.location.reload();
+    await axios.post("/api/sign-out");
+    window.location.reload();
   }
   
   return (
-    <div className="font-[family-name:var(--font-geist-sans)] h-full w-full text-white flex flex-col">
-       Welcome {session?.user?.email}
-       <Image src={session?.user?.image as string} alt="user image" width={100} height={100} />
+    <div className="font-[family-name:var(--font-geist-sans)] h-full w-full text-white flex flex-col items-center justify-center">
+      <Avatar className="w-60 h-60 mb-8">
+        <AvatarImage src={session?.user?.image as string} className="w-60 h-60"/>
+      </Avatar>
+      <div className="text-2xl">
+        Welcome {session?.user?.email}  
+      </div>
 
-      <Button type="submit" size={"default"} onClick={handleSignOut}>Sign Out</Button>
+      <Button
+       type="submit" 
+       size={"lg"} 
+       onClick={handleSignOut}
+       className="mt-8 text-lg"
+      >
+        Sign Out
+      </Button>
     </div>
   );
 }
