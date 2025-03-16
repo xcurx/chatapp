@@ -61,7 +61,7 @@ export default function RootLayout({
   const [currentUserTyping, setCurrentUserTyping] = useState<boolean>(false);
 
   const getId = async () => {
-    if(!session?.user?.email) return;
+    if(!session?.user) return;
     const res = await axios.get(`/api/get-id`, { params: { email: session?.user?.email } });
     setUser({ ...session?.user, id: res?.data?.data.id });
     return res;
