@@ -3,11 +3,11 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-export const GET = auth(async (req,ctx) => {
-    const params = await ctx.params;
-    const chatId = params?.chatId;
+export const GET = async (req:Request, context: { params: Promise<{ chatId: string }> }) => {
+    const { chatId: chatId } = await context.params;
+    const session = await auth()
 
-    if(!req.auth?.user){
+    if(!session?.user){
         Response.json(
             {
                 success: false,
@@ -75,7 +75,7 @@ export const GET = auth(async (req,ctx) => {
     for(let i = 0; i < messages.length; i++){
         const message = messages[i];
 
-        if(chat.users.find((u) => u.email === req.auth?.user?.email)?.id === message.userId){
+        if(chat.users.find((u) => u.email === session?.user?.email)?.id === message.userId){
             continue;
         }
         if(message.received){
@@ -102,4 +102,4 @@ export const GET = auth(async (req,ctx) => {
         },
         { status: 200 }
     )
-})
+}

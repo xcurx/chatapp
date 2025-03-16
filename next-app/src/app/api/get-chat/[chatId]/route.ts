@@ -3,11 +3,11 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-export const GET = auth(async (req, ctx) => {
-    const params = await ctx.params;
-    const chatId = params?.chatId;
+export const GET = async (req:Request, context: { params: Promise<{ chatId: string }> }) => {
+    const { chatId: chatId } = await context.params;
+    const session = await auth()
  
-    if(!req.auth?.user){
+    if(!session?.user){
         return Response.json(
             {
                 success: false,
@@ -53,4 +53,4 @@ export const GET = auth(async (req, ctx) => {
         },
         { status: 200 }
     )
-})
+}

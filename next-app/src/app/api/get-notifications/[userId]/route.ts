@@ -3,8 +3,11 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-export const GET = auth(async (req,ctx) => {
-    if(!req.auth?.user){
+export const GET = async (req:Request, context: { params: Promise<{ userId: string }> }) => {
+    const { userId:userId } = await context.params;
+    const session = await auth()
+
+    if(!session?.user){
         return Response.json(
             {
                 error: "Unauthorized"
@@ -14,10 +17,6 @@ export const GET = auth(async (req,ctx) => {
             }
         )
     }
-
-    const params = await ctx.params;
-    const userId = params?.userId
-    
 
     const user = await prisma.notification.findMany({
         where: {
@@ -35,4 +34,4 @@ export const GET = auth(async (req,ctx) => {
         },
         {status: 201}
     )
-})
+}
