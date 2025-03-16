@@ -70,7 +70,7 @@ export default function RootLayout({
 
   const getChats = async () => {
     if(!user) return;
-    await axios.get(`/api/get-chats/${user?.id}`)
+    await axios.get(`/api/get-chats`)
     .then((res) => {
       setChats(res?.data?.data);
       setUnreadMessages(() => {

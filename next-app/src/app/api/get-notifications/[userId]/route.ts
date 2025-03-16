@@ -3,7 +3,7 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-export const GET = auth(async (req) => {
+export const GET = auth(async (req,ctx) => {
     if(!req.auth?.user){
         return Response.json(
             {
@@ -15,13 +15,13 @@ export const GET = auth(async (req) => {
         )
     }
 
-    const url = new URL(req.url);
-    const userId = url.pathname.split('/').pop();
+    const params = await ctx.params;
+    const userId = params?.userId
     
 
     const user = await prisma.notification.findMany({
         where: {
-            targetId: userId
+            targetId: userId as string
         },
         include:{
             user: true

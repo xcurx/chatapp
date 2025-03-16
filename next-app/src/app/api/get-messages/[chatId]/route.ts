@@ -3,10 +3,10 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-export const GET = auth(async (req) => {
-    const url = new URL(req.url);
-    const chatId = url.pathname.split('/').pop();
- 
+export const GET = auth(async (req,ctx) => {
+    const params = await ctx.params;
+    const chatId = params?.chatId;
+
     if(!req.auth?.user){
         Response.json(
             {
@@ -29,7 +29,7 @@ export const GET = auth(async (req) => {
 
     const chat = await prisma.chat.findUnique({
         where: {
-            id: chatId
+            id: chatId as string
         },
         include: {
             messages: {
@@ -50,16 +50,17 @@ export const GET = auth(async (req) => {
         )
     }
 
+    const url = new URL(req.url);
     const cursor = url.searchParams.get('cursor') as string;
     const take = 20;
 
     const messages = await prisma.message.findMany({
             where:{
-                chatId: chatId
+                chatId: chatId as string
             },
             take: take+1, // Fetch messages in descending order
             orderBy: { createdAt: "desc" },
-            cursor: cursor ? { id: cursor } : undefined, // Use cursor if available
+            cursor: cursor ? { id: cursor as string } : undefined, // Use cursor if available
             skip: cursor ? 1 : 0, // Skip the cursor itself to prevent duplication
             include: {
                 user: true

@@ -41,8 +41,6 @@ export const GET = auth(async (req) => {
             users: true,
         }
     })
-    // console.log(chats);
-    
   
     const chatsWithMessages = await Promise.all(chats.map(async chat => {
         const messages:Message[] = await prisma.$queryRaw`
@@ -83,8 +81,6 @@ export const GET = auth(async (req) => {
             })
         }
     }
-
-    // console.log(chatsWithMessages);
 
     return Response.json(
         {

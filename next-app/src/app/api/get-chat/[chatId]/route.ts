@@ -3,17 +3,17 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-export const GET = auth(async (req) => {
-    const url = new URL(req.url);
-    const chatId = url.pathname.split('/').pop();
+export const GET = auth(async (req, ctx) => {
+    const params = await ctx.params;
+    const chatId = params?.chatId;
  
-    if(req.auth?.user){
-        Response.json(
+    if(!req.auth?.user){
+        return Response.json(
             {
                 success: false,
                 message: 'Unauthorized',
             },
-            { status: 500 }
+            { status: 401 }
         )
     }
 
@@ -29,7 +29,7 @@ export const GET = auth(async (req) => {
 
     const chat = await prisma.chat.findUnique({
         where: {
-            id: chatId
+            id: chatId as string
         },
         include: {
             users: true
