@@ -196,7 +196,7 @@ export default function RootLayout({
     <>
       { (user && socket && chats && unreadMessages) && (
         <div
-         className={`${geistSans.variable} ${geistMono.variable} bg-zinc-950 antialiased flex flex-col h-screen overflow-hidden`}
+         className={`${geistSans.variable} ${geistMono.variable} bg-zinc-950 antialiased h-full flex flex-col overflow-hidden`}
          suppressHydrationWarning
         >
         <nav className="w-full border-t-[1px] flex justify-between items-center border-b-[1px] border-zinc-700">

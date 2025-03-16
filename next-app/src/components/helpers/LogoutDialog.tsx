@@ -3,9 +3,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Button } from '../ui/button'
 import { LogOut } from 'lucide-react'
 import axios from 'axios'
+import { useRouter } from 'next/navigation'
 
 const LogoutDialog = () => {
     const [open, setOpen] = useState(false)
+    const route = useRouter()
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -35,7 +37,7 @@ const LogoutDialog = () => {
                  size={"lg"}
                  onClick={async () => {
                     await axios.post("/api/sign-out");
-                    window.location.reload();
+                    route.push("/sign-in");
                  }}
                 >
                   Sign out

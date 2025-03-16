@@ -5,13 +5,15 @@ import { useContext } from "react";
 import { UserContext } from "./layout";
 import axios from "axios";
 import { Avatar, AvatarImage } from "@/components/ui/avatar";
+import { useRouter } from "next/navigation";
 
 export default function Home() {
   const session = useContext(UserContext);
+  const router = useRouter();
 
   const handleSignOut = async () => {
     await axios.post("/api/sign-out");
-    window.location.reload();
+    router.push("/sign-in");
   }
   
   return (

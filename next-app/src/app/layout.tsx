@@ -2,6 +2,7 @@
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { SessionProvider } from "next-auth/react";
+import { useEffect } from "react";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -18,12 +19,24 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+
+  useEffect(() => {
+    const setBodyHeight = () => {
+      document.body.style.height = `${window.innerHeight}px`;
+    };
+
+    setBodyHeight();
+    window.addEventListener("resize", setBodyHeight);
+
+    return () => window.removeEventListener("resize", setBodyHeight);
+  }, []);
+
   return (
     <html lang="en" className="dark" suppressHydrationWarning>
       <SessionProvider> 
         <body
-          className={`${geistSans.variable} ${geistMono.variable} antialiased flex flex-col h-screen overflow-hidden`}
-          >
+          className={`${geistSans.variable} ${geistMono.variable} antialiased overflow-hidden`}
+        >
             {children}   
         </body>
       </SessionProvider>

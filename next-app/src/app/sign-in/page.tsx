@@ -10,7 +10,7 @@ export default async function SignIn() {
         "use server"
         await signIn("google",{ redirectTo: "/" })
       }}
-      className="m-auto"
+      className="flex flex-col items-center justify-center h-screen"
     >
       <Card className="xs:w-[400px] w-[300px] m-auto p-3 flex flex-col items-center">
         <CardHeader>
