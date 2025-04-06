@@ -95,7 +95,7 @@ const Page = () => {
         />
        </div>
 
-       <div className='w-full mt-5 flex flex-col space-y-6 items-center overflow-y-auto bg-zinc-950'>
+       <div className='w-full mt-5 flex flex-col space-y-6 items-center overflow-y-auto scrollbar-thin scrollbar-thumb-zinc-600 scrollbar-track-transparent'>
             {
                 searchResults && searchResults.map((user) => (
                     <SearchComponent key={user.id} user={user} handleAdd={handleAdd} loading={loading}/>

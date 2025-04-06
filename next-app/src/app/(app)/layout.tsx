@@ -251,7 +251,7 @@ export default function RootLayout({
             </div>
         </nav>
         <main className="relative flex flex-1 h-full text-black overflow-hidden">
-          <div className={`bg-zinc-950 2xl:w-[450px] xl:w-[350px] lg:w-[300px] ${!chatId? "w-full" : "hidden"} lg:flex flex-col justify-start border-r-[1px] border-zinc-700 overflow-y-auto`}>
+          <div className={`bg-zinc-950 2xl:w-[450px] xl:w-[350px] lg:w-[300px] ${!chatId? "w-full" : "hidden"} lg:flex flex-col justify-start border-r-[1px] border-zinc-700 overflow-y-auto scrollbar-thin scrollbar-thumb-zinc-600 scrollbar-track-transparent`}>
              {
                 chats?.length === 0 && (
                   <div className="flex-1 flex flex-col justify-center items-center p-2 text-zinc-300">
