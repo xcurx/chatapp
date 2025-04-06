@@ -251,7 +251,15 @@ export default function RootLayout({
             </div>
         </nav>
         <main className="relative flex flex-1 h-full text-black overflow-hidden">
-          <div className={`bg-zinc-950 2xl:w-[450px] xl:w-[350px] lg:w-[300px] ${!chatId? "w-full" : "hidden"} lg:flex flex-col justify-start border-r-[1px] border-zinc-700 overflow-auto`}>
+          <div className={`bg-zinc-950 2xl:w-[450px] xl:w-[350px] lg:w-[300px] ${!chatId? "w-full" : "hidden"} lg:flex flex-col justify-start border-r-[1px] border-zinc-700 overflow-y-auto`}>
+             {
+                chats?.length === 0 && (
+                  <div className="flex-1 flex flex-col justify-center items-center p-2 text-zinc-300">
+                    <div className="text-lg">No Chats</div>
+                    <div className="text-lg text-center">Search users to send them message request</div>
+                  </div>
+                )
+             }
              {
                 user && unreadMessages && chats?.map((chat) => (
                   <ChatComponent key={chat.id} chat={chat} user={user} pathname={chatId as string} unreadMessages={unreadMessages}/>
