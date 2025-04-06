@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { useContext } from "react";
 import { UserContext } from "./layout";
 import axios from "axios";
-import { Avatar, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useRouter } from "next/navigation";
 
 export default function Home() {
@@ -20,6 +20,9 @@ export default function Home() {
     <div className="font-[family-name:var(--font-geist-sans)] h-full w-full text-white flex flex-col items-center justify-center">
       <Avatar className="w-60 h-60 mb-8">
         <AvatarImage src={session?.user?.image as string} className="w-60 h-60"/>
+        <AvatarFallback className="w-60 h-60 text-5xl">
+          {session?.user?.email?.charAt(0).toUpperCase()}
+        </AvatarFallback>
       </Avatar>
       <div className="text-2xl">
         Welcome {session?.user?.email}  
