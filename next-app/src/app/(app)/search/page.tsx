@@ -1,14 +1,12 @@
 "use client"
-import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Chat, Notification, User } from '@prisma/client'
 import axios, { AxiosResponse } from 'axios'
-import { Check, Loader, Plus } from 'lucide-react'
-import Image from 'next/image'
 import React, { useContext, useEffect, useState } from 'react'
 import { SocketContext } from '../layout'
 import { toast } from "sonner"
-interface UpdatedUser extends User {
+import SearchComponent from '@/components/helpers/SearchComponent'
+export interface UpdatedUser extends User {
     targetNotifications: Notification[];
     chats: Chat[]
 }
@@ -97,35 +95,10 @@ const Page = () => {
         />
        </div>
 
-       <div className='w-full mt-5 flex flex-col space-y-6 items-center'>
+       <div className='w-full mt-5 flex flex-col space-y-6 items-center overflow-y-auto bg-zinc-950'>
             {
                 searchResults && searchResults.map((user) => (
-                    <div key={user.id} className='flex items-center justify-between p-3 space-x-3 mt-3 xs:w-[400px] w-[300px] bg-zinc-900 border-2 border-zinc-700 rounded-md'>
-                       <div className='flex items-center space-x-3'>
-                            <div className='w-10 h-10 rounded-full bg-gray-800'>
-                                 <Image src={user.avatar} width={40} height={40} alt='avatar' className='w-full rounded-full'/>
-                            </div>
-                            <div className='flex flex-col'>
-                                <span className='text-white'>{user.name}</span>
-                                <span className='text-gray-400'>{user.email}</span>
-                            </div>
-                       </div>
-                       <div>
-                            <Button 
-                             disabled={user.targetNotifications.length > 0 || user.chats.length > 0} 
-                             onClick={handleAdd} data-id={user.id} 
-                             size={"icon"}
-                            >
-                                {
-                                    loading===user.id && user.targetNotifications.length === 0?
-                                    <Loader/>:
-                                    !(user.targetNotifications.length > 0 || user.chats.length > 0)? 
-                                    <Plus/> :
-                                    <Check/>
-                                }
-                            </Button>
-                       </div>
-                    </div>
+                    <SearchComponent key={user.id} user={user} handleAdd={handleAdd} loading={loading}/>
                 ))
             }
             {
