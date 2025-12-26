@@ -11,6 +11,7 @@ import Loader from "@/components/helpers/Loader";
 import MessageLoader from "@/components/helpers/MessageLoader";
 import MessageComponent from "@/components/helpers/MessageComponent";
 import { Send } from "lucide-react";
+import useGetMessages from "@/hooks/useGetMessages";
  
 interface CompleteChat extends Chat {
   messages: Message[]
@@ -19,19 +20,49 @@ interface CompleteChat extends Chat {
 
 export default function Home() {
   const [message, setMessage] = useState<string>('');
-  const [messages, setMessages] = useState<Message[] | null>([]);
   const [chat, setChat] = useState<CompleteChat | null>(null);
   const session = useContext(UserContext);
   const socketConnection = useContext(SocketContext);
   const { id } = useParams();
   const [isTyping, setIsTyping] = useState<boolean>(false);
-  const [cursor, setCursor] = useState<string>("");
-  const [loadMore, setLoadMore] = useState<number>(1);
-  const [hasMore, setHasMore] = useState<boolean>(true);
-  const [loadingMessages, setLoadingMessages] = useState<boolean>(false);
-  const [isUpdating, setIsUpdating] = useState<boolean>(false);
-  const [isScrolledDown, setIsScrolledDown] = useState<boolean>(true);
   const chatScrollRef= useRef<HTMLDivElement>(null);
+  const { messages, 
+          loadingMessages, 
+          setMessages, 
+          setIsUpdating, 
+          setLatestMessageCursor, 
+          latestMessageCursor, 
+          setLowerCursor, 
+          lowerCursor 
+        } = useGetMessages(id, 50, chatScrollRef);
+
+const actionsQueueRef = useRef<Message[]>([]);
+
+// Add actions to the queue
+const addToQueue = (action:Message) => {
+  actionsQueueRef.current.push(action);
+};
+
+// Process queue with debouncing to prevent stack overflow
+const isProcessingRef = useRef(false);
+const processQueue = () => {
+  if (isProcessingRef.current || actionsQueueRef.current.length === 0) return;
+  
+  isProcessingRef.current = true;
+  
+  while (actionsQueueRef.current.length > 0) {
+    const message = actionsQueueRef.current.shift();
+    if(message){
+      setMessages((prev) => (prev || []).map((msg) => msg.id === message.id ? message : msg));
+    }
+  } 
+
+  isProcessingRef.current = false;
+  // setTimeout(() => {
+  //   isProcessingRef.current = false;
+  //   processQueue();
+  // }, 0);
+};
 
   const handleSend = async () => {
     if(!message.trim()) return;
@@ -39,50 +70,47 @@ export default function Home() {
     setMessage('')
   }
 
-  const handleScroll = () => {
-    if(chatScrollRef.current){
-      const currentRef = chatScrollRef.current;
-      requestAnimationFrame(() => {
-        if(currentRef){
-          const isAtBottom = currentRef.scrollHeight - currentRef.scrollTop <= currentRef.clientHeight + 5;
-          setIsScrolledDown(isAtBottom);
-        }
-      });
-      if(currentRef.scrollTop === 0){
-        if(hasMore){
-          setLoadMore(prev => prev + 1);
-        }
-      }
-    }
-  };
-
   useEffect(() => {
     if (!socketConnection?.socket || !id) return;
     socketConnection?.socket.emit("join-room", { id });
     
-    socketConnection?.socket.on("receive-message", (message:Message) => {
-      setMessages((prev) => [...prev || [], message]);
+    socketConnection?.socket.on("receive-message", async (message:Message) => {
+      console.log("receive-message", lowerCursor, latestMessageCursor);
+      if(latestMessageCursor === lowerCursor){
+        setMessages((prev) => [...prev || [], message]);
+        setLowerCursor(message.id);
+      }
+      setLatestMessageCursor(message.id);
     });
 
     socketConnection.socket.on("update-message-id", ({ tempMessage, realMessage }) => {
-      setIsUpdating(true);
-      setMessages((prev) =>
-          (prev || []).map(msg => msg.id === tempMessage.id ? realMessage : msg)
-      );
-      if(realMessage.userId !== session?.user?.id){
-        socketConnection?.socket.emit("message-received", { messageId:realMessage.id });
+      if(latestMessageCursor === lowerCursor){
+        setIsUpdating(true);
+        setMessages((prev) =>
+            (prev || []).map(msg => msg.id === tempMessage.id ? realMessage : msg)
+        );
+        if(realMessage.userId !== session?.user?.id){
+          socketConnection?.socket.emit("message-received", { messageId:realMessage.id });
+        }
+        setTimeout(() => {
+          setIsUpdating(false);
+        }, 500)
+        setLowerCursor(realMessage.id);
       }
-      setTimeout(() => {
-        setIsUpdating(false);
-      }, 500)
+      setLatestMessageCursor(realMessage.id);
     });
 
     socketConnection?.socket.on("message-received", (message:Message) => {
-      setMessages((prev) => (prev || []).map((msg) => msg.id === message.id ? message : msg));
+      if(messages.includes(message)){
+        // setMessages((prev) => (prev || []).map((msg) => msg.id === message.id ? message : msg));
+        addToQueue(message);
+      }
     });
 
     socketConnection?.socket.on("message-read", (message:Message) => {
-      setMessages((prev) => (prev || []).map((msg) => msg.id === message.id ? message : msg));
+      // if(messages.includes(message)){
+        setMessages((prev) => (prev || []).map((msg) => msg.id === message.id ? message : msg));  
+      // }
     });
 
     return () => {
@@ -93,7 +121,7 @@ export default function Home() {
       socketConnection?.socket.off("message-received");
       socketConnection?.socket.off("message-read");
     };
-  }, [socketConnection?.socket, id, chat])
+  }, [socketConnection?.socket, id, chat, latestMessageCursor, lowerCursor]);
 
   const getChat = async () => {
     const res = await axios.get(`/api/get-chat/${id}`);
@@ -101,57 +129,12 @@ export default function Home() {
       return
     }
     setChat(res?.data.data);
-    const messages = await axios.get(`/api/get-messages/${id}`);
-    if(!messages?.data){
-      return
-    }
-    setMessages(messages?.data.data.reverse());
-    setCursor(messages?.data.nextCursor);
-    setHasMore(messages?.data.hasMore);
   }
 
   useEffect(() => {
-    if(chatScrollRef.current && messages && isScrolledDown && !isUpdating){
-      setTimeout(() => {
-        chatScrollRef.current?.scrollTo({
-          top: chatScrollRef.current.scrollHeight,
-          behavior: 'smooth'  
-        });
-      }, 100);
-      setIsScrolledDown(true);
-    }
-  }, [messages]);
-
-  useEffect(() => {
-    if(chatScrollRef.current){
-      chatScrollRef.current.addEventListener("scroll", handleScroll);
-    }
-
-    return () => {
-      if (chatScrollRef.current) {
-        chatScrollRef.current.removeEventListener("scroll", handleScroll);
-      }
-    };
-  }, [chat]);
-
-  useEffect(() => {
-    const getMessages = async (cursor:string) => {
-      if(!hasMore) return;
-      setLoadingMessages(true);
-      const res = await axios.get(`/api/get-messages/${id}?cursor=${cursor}`);
-      if(!res?.data){
-        return
-      }
-      setMessages((prev) => [...res?.data.data.reverse(), ...prev || []]);
-      setCursor(res?.data.nextCursor);
-      setHasMore(res?.data.hasMore);
-      setLoadingMessages(false);
-    }
-
-    if(cursor && !loadingMessages){
-      getMessages(cursor);
-    }
-  }, [loadMore]);
+    if(isProcessingRef.current) return;
+    processQueue();
+  }, [actionsQueueRef.current, messages]);
 
   useEffect(() => {
     getChat();
@@ -165,12 +148,15 @@ export default function Home() {
     <div className="relative font-[family-name:var(--font-geist-sans)] h-full w-full text-white flex flex-col">
         <div ref={chatScrollRef} className="flex-1 w-full overflow-auto">
           {
-            loadingMessages && <div className="w-full flex justify-center items-center"><MessageLoader/></div>
+            loadingMessages.upward && <div className="w-full flex justify-center items-center"><MessageLoader/></div>
           }
           {
             socketConnection && session?.user && messages?.map((message) => (
               <MessageComponent key={message.id} message={message} user={session?.user} socket={socketConnection?.socket}/>
             ))
+          }
+          {
+            loadingMessages.downward && <div className="w-full flex justify-center items-center"><MessageLoader/></div>
           }
         </div>
         {

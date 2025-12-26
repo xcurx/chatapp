@@ -25,7 +25,7 @@ const ChatComponent = ({
     >
       <div>
         <Avatar>
-            <AvatarImage src={chat.users.filter((u) => u.name !== user?.name)[0].avatar}/>
+            {/* <AvatarImage src={chat.users.filter((u) => u.name !== user?.name)[0].avatar || '/avatar.png'}/> */}
             <AvatarFallback className="bg-zinc-700">
                 {chat.name.split('-').filter((name) => name !== user?.name)[0][0]}
             </AvatarFallback>

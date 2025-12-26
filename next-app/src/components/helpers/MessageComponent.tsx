@@ -37,7 +37,7 @@ const MessageComponent = memo(({
   
   
     return (
-      <div ref={messageRef} className={`flex m-3 ${message.userId === user.id? "justify-end" : "justify-start"}`}>
+      <div id={`message-${message.id}`} ref={messageRef} className={`flex m-3 ${message.userId === user.id? "justify-end" : "justify-start"}`}>
         <div className="relative p-2 bg-zinc-800 text-white rounded-lg">
           <div className="mr-5">
             {message.content}
