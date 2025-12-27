@@ -1,4 +1,3 @@
-import { NotificationWithUser, UserWithId } from "@/app/(app)/layout";
 import axios from "axios";
 import { useEffect, useState } from "react";
 import { Socket } from "socket.io-client";
@@ -8,13 +7,15 @@ import { Bell, BellDot } from "lucide-react";
 import { DialogTitle } from "@radix-ui/react-dialog";
 import NotificationComponent from "./NotificationComponent";
 import { Button } from "../ui/button";
+import { NotificationWithUser } from "@/hooks/useChats";
+import { User } from "next-auth";
 
 const NotificationDialog = ({ 
   user, 
   socket, 
   getChats 
 }:{ 
-  user:UserWithId, 
+  user:User, 
   socket:Socket, 
   getChats:() => void 
 }) => {

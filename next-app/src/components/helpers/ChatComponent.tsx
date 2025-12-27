@@ -1,19 +1,22 @@
-import { ChatWithLastMessage, UserWithId } from '@/app/(app)/layout'
+import { ChatWithLastMessage } from '@/app/(app)/layout'
 import React from 'react'
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar'
 import { Message } from '@prisma/client'
 import { useRouter } from 'next/navigation'
+import { User } from 'next-auth'
 
 const ChatComponent = ({
     chat,
     pathname,
     user,
-    unreadMessages
+    previewMessage,
+    unreadCount
 }:{
     chat:ChatWithLastMessage,
     pathname:string,
-    user:UserWithId,
-    unreadMessages:{[key:string]: Message[]}
+    user:User,
+    previewMessage:string
+    unreadCount:number
 }) => {
     const router = useRouter()
 
@@ -35,13 +38,13 @@ const ChatComponent = ({
         <div className="xl:text-lg text-base">{chat.name.split('-').filter((name) => name !== user?.name)[0]}</div>
         <div className="w-full text-sm text-gray-200 text-ellipsis">
           {
-            pathname!==chat.id ? (unreadMessages[chat.id] && unreadMessages[chat.id]?.length>0) ? (
+            pathname!==chat.id ? unreadCount == 0? (
              <div className="w-full flex justify-between">
                 <span className="text-[#0071FF]"> 
-                  {unreadMessages[chat.id]?.[unreadMessages[chat.id]?.length - 1]?.content}
+                  {previewMessage}
                 </span>
                 <span className="text-white rounded-full w-5 h-5 flex justify-center items-center bg-blue-600 text-xs">
-                  {unreadMessages[chat.id].length.toString()}
+                  {unreadCount}
                 </span>
              </div>
             ) : chat.messages[0]?.content ? chat.messages[0]?.content : "No messages" : null

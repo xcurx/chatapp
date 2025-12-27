@@ -1,3 +1,4 @@
+import { connectSocket, getSocket } from "@/lib/socket";
 import { Message } from "@prisma/client";
 import axios from "axios";
 import { ParamValue } from "next/dist/server/request/params";
@@ -14,7 +15,7 @@ const getMessages = async (chatId:ParamValue, cursor:string | undefined=undefine
     }
 }
 
-const useGetMessages = (chatId:ParamValue, limit:number, chatElementRef:RefObject<HTMLDivElement | null>) => {
+const useGetMessages = (userId:string, chatId:ParamValue, limit:number, chatElementRef:RefObject<HTMLDivElement | null>) => {
     const [messages, setMessages] = useState<Message[]>([]);
     const [loadingMessages, setLoadingMessages] = useState({ upward: false, downward: false });
     const [upperCursor, setUpperCursor] = useState<string | undefined>(undefined);
@@ -24,6 +25,7 @@ const useGetMessages = (chatId:ParamValue, limit:number, chatElementRef:RefObjec
     const [hasMoreUpper, setHasMoreUpper] = useState(false);
     const [isScrolledDown, setIsScrolledDown] = useState(true);
     const [isUpdating, setIsUpdating] = useState(false);
+    const socket = getSocket()
 
     const getMessagesForward = async () => {
         if(loadingMessages.upward || loadingMessages.downward || isUpdating) return;
@@ -72,6 +74,53 @@ const useGetMessages = (chatId:ParamValue, limit:number, chatElementRef:RefObjec
             }
         }, 10)
     }
+
+    useEffect(() => {
+        socket.emit("join-room", { id:chatId as string })
+
+        socket.on("receive-message", async ({message}) => {
+            console.log("receive-message", lowerCursor, latestMessageCursor, message);
+            if(latestMessageCursor === lowerCursor){
+              setMessages((prev) => [...prev || [], message]);
+              setLowerCursor(message.id);
+            }
+            setLatestMessageCursor(message.id);
+        })
+    
+        socket.on("update-message-id", ({ tempMessage, realMessage }) => {
+          if(latestMessageCursor === lowerCursor){
+            setIsUpdating(true);
+            setMessages((prev) =>
+                (prev || []).map(msg => msg.id === tempMessage.id ? realMessage : msg)
+            );
+            if(realMessage.userId !== userId){
+              socket.emit("message-received", { id:realMessage.id });
+            }
+            setTimeout(() => {
+              setIsUpdating(false);
+            }, 500)
+            setLowerCursor(realMessage.id);
+          }
+          setLatestMessageCursor(realMessage.id);
+        });
+
+        socket.on("message-received", ({message}) => {
+            setMessages((prev) => (prev || []).map((msg) => msg.id === message.id ? message : msg));
+        });
+
+        socket.on("message-read", ({message}) => {
+            setMessages((prev) => (prev || []).map((msg) => msg.id === message.id ? message : msg));  
+        });
+
+        return () => {
+          socket.emit("leave-room", { id:chatId as string });
+          socket.off("connect");
+          socket.off("receive-message");
+          socket.off("update-message-id");
+          socket.off("message-received");
+          socket.off("message-read");
+        };
+    }, [chatId, socket, latestMessageCursor, lowerCursor])
 
     useEffect(() => {
         const controller = new AbortController();
@@ -124,7 +173,8 @@ const useGetMessages = (chatId:ParamValue, limit:number, chatElementRef:RefObjec
             }
             setLoadingMessages({ upward:false, downward:false });
         }
-        initialMessages();      
+        connectSocket("")
+        initialMessages(); 
     }, [chatId]);
 
     return {

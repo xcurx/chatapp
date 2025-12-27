@@ -1,14 +1,13 @@
 "use client"
 import { Button } from "@/components/ui/button";
 // import { signOut } from "@/lib/auth";
-import { useContext } from "react";
-import { UserContext } from "./layout";
 import axios from "axios";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 
 export default function Home() {
-  const session = useContext(UserContext);
+  const {data:session} = useSession()
   const router = useRouter();
 
   const handleSignOut = async () => {

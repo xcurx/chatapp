@@ -1,50 +1,60 @@
 import NextAuth from "next-auth"
-import { PrismaClient } from "@prisma/client";
+import "next-auth/jwt"
 import Google from "next-auth/providers/google";
- 
-export const runtime = "nodejs"; 
 
-const prisma = new PrismaClient()
+declare module "next-auth" {
+    interface Session {
+        user: {
+            id: string
+            email: string
+            name: string
+            image?: string
+        }
+    }
+}
+
+declare module "next-auth/jwt" {
+    interface JWT {
+        id?: string
+    }
+}
  
 export const { handlers, signIn, signOut, auth } = NextAuth({
   providers: [Google],
   callbacks: {
-    async signIn({profile}){
-        if(!profile?.email){
-            throw new Error("No profile");
+    async jwt({ token, user, account, profile }) {
+      // On initial sign in, sync user to database via API route
+      if (account && profile?.email) {
+        try {
+          const response = await fetch(`${process.env.NEXTAUTH_URL}/api/auth/sync-user`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              email: profile.email,
+              name: profile.name,
+              avatar: profile.picture,
+            }),
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            token.id = data.id;
+          }
+          console.log(token)
+        } catch (error) {
+          console.error('Failed to sync user:', error);
         }
-        
-        await prisma.user.upsert({
-            where:{
-                email: profile.email
-            },
-            create:{
-                email: profile.email,
-                name: profile.name as string,
-                avatar: profile.picture as string,
-            },
-            update:{
-                name: profile.name as string,
-            },  
-        })
-
-            return true;
+      }
+      return token;
     },
 
-    // async session({ session }) {
-    //     if (session?.user?.email) {
-    //       const dbUser = await prisma.user.findUnique({
-    //         where: { email: session.user.email },
-    //         select: { id: true } // Fetch only the id
-    //       });
-  
-    //       if (dbUser) {
-    //         session.user.id = dbUser.id; // Add user ID to session
-    //       }
-    //     }
-  
-    //     return session;
-    // }
+    async session({ session, token }) {
+      // Add user ID from JWT to session
+      if (token.id) {
+        session.user.id = token.id;
+      }
+      return session;
+    }
  },
  pages:{
     signIn: "/sign-in",

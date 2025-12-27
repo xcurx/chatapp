@@ -23,6 +23,7 @@ const sockets: Sockets = {};
 
 io.on('connection', (socket) => {
     const userId = socket.handshake.query.userId as string;
+    console.log("User joined", userId)
     sockets[userId] = socket.id;
     console.log('a user connected', socket.id, userId, io.sockets.sockets.size);
     
@@ -45,9 +46,9 @@ io.on('connection', (socket) => {
             read: false
         };
         
-        console.log(socket.rooms)
-        io.to(chatId).emit("receive-message", tempMessage);
-        io.to(chatId).emit("receive-message-background", tempMessage);
+        // console.log(socket.rooms)
+        io.to(chatId).emit("receive-message", {message:tempMessage});
+        io.to(chatId).emit("receive-message-background", {message:tempMessage});
 
         try {
             // Save the message in the database
@@ -68,30 +69,30 @@ io.on('connection', (socket) => {
         }
     })
 
-    socket.on("message-received", async ({messageId}) => {
+    socket.on("message-received", async ({id}) => {
         const message = await prisma.message.update({
             where: {
-                id: messageId
+                id
             },
             data: {
                 received: true
             }
         })
 
-        io.to(message.chatId).emit("message-received", message);
+        io.to(message.chatId).emit("message-received", {message});
     })
 
-    socket.on("message-read", async ({messageId}) => {
+    socket.on("message-read", async ({id}) => {
         const message = await prisma.message.update({
             where: {
-                id: messageId
+                id
             },
             data: {
                 read: true
             }
         })
 
-        io.to(message.chatId).emit("message-read", message);
+        io.to(message.chatId).emit("message-read", {message});
     })
 
     socket.on("online-status", ({userId}) => {
@@ -99,7 +100,7 @@ io.on('connection', (socket) => {
     })
 
     socket.on("typing", ({userId, isTyping}) => {
-        io.to(userId).emit("typing", userId, isTyping);
+        io.to(userId).emit("typing", {userId, isTyping});
     })
 
     socket.on("notification", ({notification}) => {

@@ -23,7 +23,7 @@ const MessageComponent = memo(({
           async ([entry]) => {
             if (entry.isIntersecting) {
               // await axios.patch(`/api/read-messages`, { messageId: message.id });
-              socket.emit("message-read", { messageId:message.id });
+              socket.emit("message-read", { id:message.id });
               observer.disconnect(); // Stop observing after marking as read
             }
           },
