@@ -1,9 +1,9 @@
-import { NotificationWithUser } from "@/app/(app)/layout"
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar"
 import { Check, Loader, X } from "lucide-react"
 import { Button } from "../ui/button"
 import { useEffect, useRef } from "react"
 import axios from "axios"
+import { NotificationWithUser } from "@/hooks/useChats"
 
 const NotificationComponent = ({ 
     notification, 
@@ -41,7 +41,6 @@ const NotificationComponent = ({
         }
       }
     },[notification])
-
 
 
     return (

@@ -1,24 +1,20 @@
-import { ChatWithLastMessage } from '@/app/(app)/layout'
-import React from 'react'
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar'
-import { Message } from '@prisma/client'
 import { useRouter } from 'next/navigation'
-import { User } from 'next-auth'
+import { ChatWithLastMessage } from '@/hooks/useChats'
+import { User } from '@prisma/client'
 
 const ChatComponent = ({
     chat,
     pathname,
     user,
-    previewMessage,
-    unreadCount
 }:{
     chat:ChatWithLastMessage,
     pathname:string,
-    user:User,
-    previewMessage:string
-    unreadCount:number
+    user:Partial<User>,
 }) => {
     const router = useRouter()
+
+    // console.log(chat.users.filter(u => u.name !== user.name)[0].name[0])
 
   return (
     <div 
@@ -30,21 +26,21 @@ const ChatComponent = ({
         <Avatar>
             {/* <AvatarImage src={chat.users.filter((u) => u.name !== user?.name)[0].avatar || '/avatar.png'}/> */}
             <AvatarFallback className="bg-zinc-700">
-                {chat.name.split('-').filter((name) => name !== user?.name)[0][0]}
+                {chat.users.filter(u => u.name !== user.name)[0].name[0]}
             </AvatarFallback>
         </Avatar>
       </div>
       <div className="flex-1">
-        <div className="xl:text-lg text-base">{chat.name.split('-').filter((name) => name !== user?.name)[0]}</div>
+        <div className="xl:text-lg text-base">{chat.name.split('-').filter((name) => name !== user.name)[0]}</div>
         <div className="w-full text-sm text-gray-200 text-ellipsis">
           {
-            pathname!==chat.id ? unreadCount == 0? (
+            pathname!==chat.id ? chat.unreadCount != 0? (
              <div className="w-full flex justify-between">
                 <span className="text-[#0071FF]"> 
-                  {previewMessage}
+                  {chat.messages[0].content}
                 </span>
                 <span className="text-white rounded-full w-5 h-5 flex justify-center items-center bg-blue-600 text-xs">
-                  {unreadCount}
+                  {chat.unreadCount}
                 </span>
              </div>
             ) : chat.messages[0]?.content ? chat.messages[0]?.content : "No messages" : null

@@ -1,14 +1,13 @@
 import { getSocket } from "@/lib/socket";
-import { Chat, Message, Notification } from "@prisma/client";
+import { Chat, Message, Notification, User } from "@prisma/client";
 import axios from "axios";
-import { User } from "next-auth";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react"
 
 export interface ChatWithLastMessage extends Chat {
   messages: Message[];
   users: User[];
-  unreadCound: number
+  unreadCount: number
 }
 
 export interface NotificationWithUser extends Notification {
@@ -49,7 +48,8 @@ export const useChats = (userId:string) => {
                 if (chat.id === message.chatId) {
                     return {
                         ...chat,
-                        messages: [message]
+                        messages: [message],
+                        unreadCount: chat.unreadCount++
                     }
                 }
                 return chat

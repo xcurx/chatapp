@@ -1,6 +1,5 @@
-import { Message } from "@prisma/client";
+import { Message, Notification } from "@prisma/client";
 import { io, Socket } from "socket.io-client";
-import { auth } from "./auth";
 import { getSession } from "next-auth/react";
 
 interface ClientToServerEvents {
@@ -10,6 +9,8 @@ interface ClientToServerEvents {
     "leave-room": (data: {id: string}) => void;
     "typing": (data: {userId: string, isTyping: boolean}) => void;
     "online-status": (data: { userId: string, sendId: string }) => void;
+    "notification": (data: {notification: Notification }) => void
+    "notification-update": (data: {notification: Notification }) => void
 }
 
 interface ServerToClientEvents {

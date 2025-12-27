@@ -1,14 +1,9 @@
 "use client"
 import { Geist, Geist_Mono } from "next/font/google";
 import { Button } from "@/components/ui/button";
-import axios from "axios";
 import { useSession } from "next-auth/react";
-import React, { createContext, useEffect, useState } from "react";
-import { User } from "next-auth";
-import { Message, User as UserDB } from "@prisma/client";
-import { io, Socket } from "socket.io-client";
-import { Chat, Notification } from "@prisma/client";
-import { usePathname, useRouter } from "next/navigation";
+import React from "react";
+import { useRouter } from "next/navigation";
 import { Toaster } from "@/components/ui/sonner";
 import ChatComponent from "@/components/helpers/ChatComponent";
 import NotificationDialog from "@/components/helpers/NotificationDialog";
@@ -18,6 +13,7 @@ import Loader from "@/components/helpers/Loader";
 import LogoutDialog from "@/components/helpers/LogoutDialog";
 import { getSocket } from "@/lib/socket";
 import { useChats } from "@/hooks/useChats";
+import { User } from "@prisma/client";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -34,14 +30,14 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const { data: session, status } = useSession();
-  const user = session?.user
+  const { data: session } = useSession();
+  const user: Partial<User> = {
+      ...session?.user,
+      avatar:session?.user.image as string,
+  }
   const { chatId, chats, currentChat, currentOnlineUser, currentUserTyping, getChats, pathname } = useChats(user?.id!)
   const router = useRouter();
   let socket = getSocket()
-
-  console.log("working", socket)
-  console.log("The holy trinity", user, socket, chats)
 
   if (!user || !socket || !chats) {
     return <div className="w-full h-screen flex justify-center items-center"><Loader /></div>
@@ -76,9 +72,9 @@ export default function RootLayout({
                   currentChat && (
                     <div className="py-2 px-3 flex items-center space-x-3">
                       <Avatar>
-                        <AvatarImage src={currentChat.users.filter((u) => u.id !== user?.id)[0].image as string} />
+                        <AvatarImage src={currentChat.users.filter((u) => u.id !== user?.id)[0].avatar as string} />
                         <AvatarFallback>
-                          {/* {currentChat.users.filter((u) => u.id !== user?.id)[0].name[0]} */}
+                          {currentChat.users.filter((u) => u.id !== user?.id)[0].name[0]}
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex flex-col justify-center">
@@ -117,7 +113,7 @@ export default function RootLayout({
               }
               {
                 user && chats?.map((chat) => (
-                  <ChatComponent key={chat.id} chat={chat} user={user} pathname={chatId as string} unreadCount={chat.unreadCound}  previewMessage={chat.messages[0].content}/>
+                  <ChatComponent key={chat.id} chat={chat} user={user} pathname={chatId as string}/>
                 ))
               }
             </div>

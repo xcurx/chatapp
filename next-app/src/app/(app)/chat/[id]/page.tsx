@@ -79,11 +79,11 @@ export default function Home() {
                onChange={(e) => {
                   setMessage(e.target.value);
                   if(!isTyping){
-                    // socket?.emit("typing", { userId:session?.user?.id, isTyping:e.target.value.length > 0 });
+                    socket?.emit("typing", { userId:session?.user?.id!, isTyping:e.target.value.length > 0 });
                        
                     setTimeout(() => {
                       setIsTyping(false);
-                      // socket?.emit("typing", { userId:session?.user?.id, isTyping:false });
+                      socket?.emit("typing", { userId:session?.user?.id!, isTyping:false });
                     },2000)
                   }
                }}

@@ -1,6 +1,8 @@
-import { UserWithId } from "@/app/(app)/layout";
 import { Message } from "@prisma/client";
+import axios from "axios";
 import { Check, CheckCheck } from "lucide-react";
+import { User } from "next-auth";
+import { usePathname, useSearchParams } from "next/navigation";
 import { memo, useEffect, useRef } from "react";
 import { Socket } from "socket.io-client";
 import { isUUID } from "validator"
@@ -8,20 +10,22 @@ import { isUUID } from "validator"
 const MessageComponent = memo(({
     message, 
     user, 
-    socket
+    socket,
 }:{
     message:Message, 
-    user:UserWithId, 
-    socket:Socket
+    user:User,
+    socket:Socket,
 }) => {
     const messageRef = useRef<HTMLDivElement>(null);
+    const param = usePathname().split("/").pop()
       
     useEffect(() => {
-        if (!messageRef.current || message.read || isUUID(message.id) || message.userId === user.id) return;
+        if (!messageRef.current || message.read || isUUID(message.id) || message.userId === user.id || message.chatId === param) return;
 
         const observer = new IntersectionObserver(
           async ([entry]) => {
             if (entry.isIntersecting) {
+              console.log("Read by user", user.id)
               // await axios.patch(`/api/read-messages`, { messageId: message.id });
               socket.emit("message-read", { id:message.id });
               observer.disconnect(); // Stop observing after marking as read

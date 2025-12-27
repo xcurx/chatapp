@@ -1,6 +1,5 @@
 "use client"
 import { Button } from "@/components/ui/button";
-// import { signOut } from "@/lib/auth";
 import axios from "axios";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useRouter } from "next/navigation";

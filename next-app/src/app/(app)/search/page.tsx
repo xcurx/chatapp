@@ -3,9 +3,9 @@ import { Input } from '@/components/ui/input'
 import { Chat, Notification, User } from '@prisma/client'
 import axios, { AxiosResponse } from 'axios'
 import React, { useContext, useEffect, useState } from 'react'
-import { SocketContext } from '../layout'
 import { toast } from "sonner"
 import SearchComponent from '@/components/helpers/SearchComponent'
+import { getSocket } from '@/lib/socket'
 export interface UpdatedUser extends User {
     targetNotifications: Notification[];
     chats: Chat[]
@@ -17,7 +17,7 @@ const Page = () => {
     const [searchResults, setSearchResults] = useState<UpdatedUser[]>([])
     const [isSearching, setIsSearching] = useState<boolean>(false)
     const [loading, setLoading] = useState<string>("")
-    const socketConnection = useContext(SocketContext)
+    const socket = getSocket()
 
     const handleAdd = async (e: React.MouseEvent<HTMLButtonElement>) => {
         const targetId = e.currentTarget?.getAttribute('data-id');
@@ -39,10 +39,10 @@ const Page = () => {
                 setLoading("")
                 toast.success(res.data.message)
                 if(res.data.data.reverseNotification){
-                    socketConnection?.socket.emit('notification-update', { notification: res?.data.data.reverseNotification })
-                    socketConnection?.socket.emit('notification', { notification: res?.data.data.notification })
+                    socket.emit('notification-update', { notification: res?.data.data.reverseNotification })
+                    socket.emit('notification', { notification: res?.data.data.notification })
                 }
-                socketConnection?.socket.emit('notification', { notification: res?.data.data })
+                socket.emit('notification', { notification: res?.data.data })
             }
         } catch (error) {
             if (axios.isAxiosError(error)) {
